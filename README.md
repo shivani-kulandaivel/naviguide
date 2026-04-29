@@ -3,6 +3,7 @@
 A local web app that tracks your travel habits, reads your calendar, and uses Claude AI to suggest optimized routes and nearby places.
 
 ## Setup (2 minutes)
+## made changes
 
 #yayay
 ### Option A — VS Code Live Server (recommended)
