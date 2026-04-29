@@ -4,6 +4,7 @@ A local web app that tracks your travel habits, reads your calendar, and uses Cl
 
 ## Setup (2 minutes)
 
+#yayay
 ### Option A — VS Code Live Server (recommended)
 1. Open this folder in VS Code
 2. Install the **Live Server** extension (by Ritwick Dey)
