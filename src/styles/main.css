@@ -1,15 +1,15 @@
 :root {
-  --bg: #0e0f11;
-  --bg2: #161719;
-  --bg3: #1e2023;
-  --border: rgba(255,255,255,0.07);
-  --border2: rgba(255,255,255,0.12);
-  --text: #f0f0ee;
-  --text2: #8a8a85;
-  --text3: #555550;
-  --accent: #b8f55a;
-  --accent2: #7de8a0;
-  --accent3: #5acfff;
+  --bg: #ffffff;
+  --bg2: #c1abeb;
+  --bg3: #c9b1f6;
+  --border: rgba(50,0,110,0.07);
+  --border2: rgba(50,0,110,0.12);
+  --text: #0a0a09;
+  --text2: #141414;
+  --text3: #10100f;
+  --accent: #39275B;
+  --accent2: #121212;
+  --accent3: #010100;
   --warn: #f5c842;
   --danger: #ff6b6b;
   --font-head: 'Syne', sans-serif;
