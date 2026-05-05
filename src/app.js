@@ -2,7 +2,6 @@ const App = (() => {
   function init() {
     renderToday();
     renderLog();
-    renderHabits();
     renderDiscover();
     setupNav();
     setupApiKey();
