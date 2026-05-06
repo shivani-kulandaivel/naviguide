@@ -1,0 +1,275 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//UW Student Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:UW Student Schedule
+X-WR-TIMEZONE:America/Los_Angeles
+BEGIN:VEVENT
+SUMMARY:CSE 311 - Foundations of Computing I
+DTSTART;TZID=America/Los_Angeles:20260504T093000
+DTEND;TZID=America/Los_Angeles:20260504T105000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=MO,WE,FR
+DESCRIPTION:Lecture: logic\, proofs\, automata\, computability.
+LOCATION:Paul G. Allen Center CSE2\, Room 305\, 3800 E Stevens Way NE\, Se
+ attle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 332 - Data Structures & Parallelism
+DTSTART;TZID=America/Los_Angeles:20260504T133000
+DTEND;TZID=America/Los_Angeles:20260504T145000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=MO,WE,FR
+DESCRIPTION:Lecture: heaps\, graphs\, hashing\, concurrency.
+LOCATION:Bill & Melinda Gates Center\, Room 111\, 3800 NE Stevens Way\, Se
+ attle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 351 - The Hardware/Software Interface
+DTSTART;TZID=America/Los_Angeles:20260505T110000
+DTEND;TZID=America/Los_Angeles:20260505T122000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=TU,TH
+DESCRIPTION:Lecture: memory\, assembly\, caching\, virtual memory.
+LOCATION:Paul G. Allen Center CSE2\, Room 401\, 3800 E Stevens Way NE\, Se
+ attle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 311 - Quiz Section
+DTSTART;TZID=America/Los_Angeles:20260505T160000
+DTEND;TZID=America/Los_Angeles:20260505T165000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=TU
+DESCRIPTION:Weekly quiz section. Bring worksheet.
+LOCATION:Paul G. Allen Center CSE2\, Room 218\, 3800 E Stevens Way NE\, Se
+ attle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 332 - Lab Section
+DTSTART;TZID=America/Los_Angeles:20260506T140000
+DTEND;TZID=America/Los_Angeles:20260506T145000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=WE
+DESCRIPTION:Lab section. Work on project checkpoints with TA.
+LOCATION:Paul G. Allen Center CSE2\, Room B021\, 3800 E Stevens Way NE\, S
+ eattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 351 - Lab Section
+DTSTART;TZID=America/Los_Angeles:20260507T160000
+DTEND;TZID=America/Los_Angeles:20260507T165000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=TH
+DESCRIPTION:GDB debugging\, assembly exercises.
+LOCATION:Paul G. Allen Center CSE2\, Room B007\, 3800 E Stevens Way NE\, S
+ eattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Office Hours - CSE 311 TA (Minh)
+DTSTART;TZID=America/Los_Angeles:20260506T120000
+DTEND;TZID=America/Los_Angeles:20260506T130000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=TU
+DESCRIPTION:Drop-in OH for CSE 311. Bring HW questions.
+LOCATION:Paul G. Allen Center CSE2\, TA Lounge Room 218\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Office Hours - CSE 332 TA (Sarah)
+DTSTART;TZID=America/Los_Angeles:20260507T120000
+DTEND;TZID=America/Los_Angeles:20260507T130000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=TH
+DESCRIPTION:Drop-in OH for CSE 332.
+LOCATION:Paul G. Allen Center CSE2\, TA Lounge Room 218\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:AIC - Allen Initiatives in AI Club Meeting
+DTSTART;TZID=America/Los_Angeles:20260506T180000
+DTEND;TZID=America/Los_Angeles:20260506T193000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=WE
+DESCRIPTION:Weekly AIC meeting. Guest speakers\, project updates\, worksho
+ ps.
+LOCATION:Paul G. Allen Center CSE2\, Room 305\, 3800 E Stevens Way NE\, Se
+ attle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:UW ACM Chapter Meeting
+DTSTART;TZID=America/Los_Angeles:20260504T183000
+DTEND;TZID=America/Los_Angeles:20260504T200000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=MO
+DESCRIPTION:ACM student chapter. Tech talks\, interview prep\, networking.
+LOCATION:Bill & Melinda Gates Center\, Room 271\, 3800 NE Stevens Way\, Se
+ attle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:WiC - Women in Computing Meeting
+DTSTART;TZID=America/Los_Angeles:20260506T193000
+DTEND;TZID=America/Los_Angeles:20260506T210000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;INTERVAL=2;BYDAY=WE
+DESCRIPTION:Bi-weekly Women in Computing meeting. Mentorship\, panels\, co
+ mmunity.
+LOCATION:Mary Gates Hall\, Room 241\, 4061 E Stevens Way NE\, Seattle WA 9
+ 8195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:UW Robotics Club - Build Session
+DTSTART;TZID=America/Los_Angeles:20260508T140000
+DTEND;TZID=America/Los_Angeles:20260508T153000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=FR
+DESCRIPTION:Weekly build session. Working on autonomous navigation module.
+LOCATION:Mechanical Engineering Building (MEB)\, Room 101\, 3900 E Stevens
+  Way NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:AIC - AI Project Subgroup
+DTSTART;TZID=America/Los_Angeles:20260508T110000
+DTEND;TZID=America/Los_Angeles:20260508T120000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;INTERVAL=2;BYDAY=FR
+DESCRIPTION:AIC ML project working group. Building a recommendation system
+ .
+LOCATION:Odegaard Undergraduate Library\, Room 136\, 4060 George Washingto
+ n Lane NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 311 Midterm Exam
+DTSTART;TZID=America/Los_Angeles:20260511T130000
+DTEND;TZID=America/Los_Angeles:20260511T150000
+DESCRIPTION:Covers logic\, sets\, proofs\, induction. Bring UW ID and penc
+ il. No notes.
+LOCATION:Kane Hall\, Room 210\, 4069 Spokane Lane NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 332 Midterm Exam
+DTSTART;TZID=America/Los_Angeles:20260520T093000
+DTEND;TZID=America/Los_Angeles:20260520T113000
+DESCRIPTION:Covers priority queues\, sorting\, graphs\, hashing. Bring UW 
+ ID.
+LOCATION:Kane Hall\, Room 130\, 4069 Spokane Lane NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 351 Midterm Exam
+DTSTART;TZID=America/Los_Angeles:20260522T133000
+DTEND;TZID=America/Los_Angeles:20260522T153000
+DESCRIPTION:Covers integers\, floating point\, x86-64 assembly. One page o
+ f notes allowed.
+LOCATION:Bagley Hall\, Room 131\, 3625 Stevens Way NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 311 Final Exam
+DTSTART;TZID=America/Los_Angeles:20260605T090000
+DTEND;TZID=America/Los_Angeles:20260605T120000
+DESCRIPTION:Cumulative final. 1 double-sided cheat sheet allowed. Bring UW
+  ID.
+LOCATION:Kane Hall\, Room 220\, 4069 Spokane Lane NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 332 Final Exam
+DTSTART;TZID=America/Los_Angeles:20260608T130000
+DTEND;TZID=America/Los_Angeles:20260608T160000
+DESCRIPTION:Cumulative final. No notes allowed. Bring pencil and UW ID.
+LOCATION:Kane Hall\, Room 130\, 4069 Spokane Lane NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CSE 351 Final Exam
+DTSTART;TZID=America/Los_Angeles:20260610T093000
+DTEND;TZID=America/Los_Angeles:20260610T123000
+DESCRIPTION:Covers full quarter incl. virtual memory\, caching\, linking. 
+ One page of notes.
+LOCATION:Bagley Hall\, Room 131\, 3625 Stevens Way NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Dinner with Maya & Priya 🍜
+DTSTART;TZID=America/Los_Angeles:20260513T183000
+DTEND;TZID=America/Los_Angeles:20260513T210000
+DESCRIPTION:Ramen night before midterms get crazy.
+LOCATION:Ramen Danbo\, 1222 NE 45th St\, Seattle WA 98105
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Study Session - CSE 351 with Kevin & Leila
+DTSTART;TZID=America/Los_Angeles:20260517T140000
+DTEND;TZID=America/Los_Angeles:20260517T160000
+DESCRIPTION:Group study for CSE 351 midterm. Assembly and memory hierarchy
+ .
+LOCATION:Odegaard Undergraduate Library\, 4060 George Washington Lane NE\,
+  Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Brunch with Jess ☀️
+DTSTART;TZID=America/Los_Angeles:20260518T110000
+DTEND;TZID=America/Los_Angeles:20260518T133000
+DESCRIPTION:Catching up with Jess before her internship starts.
+LOCATION:Portage Bay Cafe\, 4130 Roosevelt Way NE\, Seattle WA 98105
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Movie Night at Amir's 🎬
+DTSTART;TZID=America/Los_Angeles:20260523T190000
+DTEND;TZID=America/Los_Angeles:20260523T220000
+DESCRIPTION:Movie night at Amir's. Bringing snacks.
+LOCATION:The Hub Apartments\, 4500 12th Ave NE\, Seattle WA 98105
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Picnic at Gasworks with Friends 🌤️
+DTSTART;TZID=America/Los_Angeles:20260525T130000
+DTEND;TZID=America/Los_Angeles:20260525T160000
+DESCRIPTION:Picnic with Maya\, Kevin\, Priya\, and others. Bring something
+  to share.
+LOCATION:Gas Works Park\, 2101 N Northlake Way\, Seattle WA 98103
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Boba Run with Leila 🧋
+DTSTART;TZID=America/Los_Angeles:20260531T200000
+DTEND;TZID=America/Los_Angeles:20260531T213000
+DESCRIPTION:Much needed study break before finals. Boba then walk around t
+ he Ave.
+LOCATION:Ding Tea\, 4214 University Way NE\, Seattle WA 98105
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Finals Done Dinner - The Whole Gang 🎊
+DTSTART;TZID=America/Los_Angeles:20260610T190000
+DTEND;TZID=America/Los_Angeles:20260610T213000
+DESCRIPTION:Celebratory dinner after last final. Maya\, Kevin\, Leila\, Pr
+ iya\, Amir\, Jess all coming.
+LOCATION:Din Tai Fung\, 2621 NE 46th St\, Seattle WA 98105
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Doctor - Annual Physical (Dr. Nguyen)
+DTSTART;TZID=America/Los_Angeles:20260514T093000
+DTEND;TZID=America/Los_Angeles:20260514T103000
+DESCRIPTION:Annual physical. Bring insurance card and UW student ID.
+LOCATION:UW Hall Health Center\, 4060 E Stevens Way NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Dentist - Cleaning & Checkup
+DTSTART;TZID=America/Los_Angeles:20260528T140000
+DTEND;TZID=America/Los_Angeles:20260528T150000
+DESCRIPTION:Bi-annual cleaning. Remember to floss beforehand.
+LOCATION:Eastlake Dental Group\, 2440 Eastlake Ave E\, Seattle WA 98102
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Eye Exam - Dr. Park
+DTSTART;TZID=America/Los_Angeles:20260604T103000
+DTEND;TZID=America/Los_Angeles:20260604T113000
+DESCRIPTION:Annual eye exam. Check if prescription changed. Ask about cont
+ acts.
+LOCATION:Pacific Cataract and Laser Institute\, 4500 Sand Point Way NE Sui
+ te 100\, Seattle WA 98105
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:AIC Spring Hackathon Kickoff 🚀
+DTSTART;TZID=America/Los_Angeles:20260509T180000
+DTEND;TZID=America/Los_Angeles:20260509T210000
+DESCRIPTION:AIC Hackathon kickoff. Team formation\, theme reveal\, free di
+ nner. 24-hour build starts now.
+LOCATION:Paul G. Allen Center CSE2\, Atrium\, 3800 E Stevens Way NE\, Seat
+ tle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:WiC End of Year Banquet 🎉
+DTSTART;TZID=America/Los_Angeles:20260602T183000
+DTEND;TZID=America/Los_Angeles:20260602T203000
+DESCRIPTION:Women in Computing end of year celebration. Dinner\, awards\, 
+ farewell to graduating seniors.
+LOCATION:HUB Lyceum Room\, 4001 E Stevens Way NE\, Seattle WA 98195
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Morning Coffee ☕
+DTSTART;TZID=America/Los_Angeles:20260504T080000
+DTEND;TZID=America/Los_Angeles:20260504T082000
+RRULE:FREQ=WEEKLY;UNTIL=20260613T235959Z;BYDAY=MO,TU,WE,TH,FR
+DESCRIPTION:Daily coffee before class.
+LOCATION:Cafe Solstice\, 4116 University Way NE\, Seattle WA 98105
+END:VEVENT
+END:VCALENDAR
