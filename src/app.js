@@ -1,3 +1,5 @@
+const GOOGLE_CLIENT_ID = "818886256150-8dapdbmbhiq57taek1b62mr8veikhafr.apps.googleusercontent.com";
+const GOOGLE_API_KEY = "AIzaSyAg5zU-Tq3ct8eZb8Mo127rS7INYrth1es";
 const App = (() => {
   function init() {
     renderToday();
@@ -6,7 +8,7 @@ const App = (() => {
     setupNav();
     setupApiKey();
   }
-
+async
   function setupNav() {
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => {
