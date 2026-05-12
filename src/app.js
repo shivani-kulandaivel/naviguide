@@ -138,3 +138,33 @@ function saveApiKey() {
 document.querySelector('.api-status').addEventListener('click', showApiKeyPrompt);
 
 document.addEventListener('DOMContentLoaded', App.init);
+
+async function loadGoogleCalendar() {
+  gapi.load("client:auth2", async () => {
+
+    await gapi.client.init({
+      apiKey: GOOGLE_API_KEY,
+      clientId: GOOGLE_CLIENT_ID,
+      discoveryDocs: [
+        "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"
+      ],
+      scope: "https://www.googleapis.com/auth/calendar.readonly"
+    });
+
+    await gapi.auth2.getAuthInstance().signIn();
+
+    const response = await gapi.client.calendar.events.list({
+      calendarId: "primary",
+      timeMin: new Date().toISOString(),
+      showDeleted: false,
+      singleEvents: true,
+      maxResults: 10,
+      orderBy: "startTime"
+    });
+
+    console.log("GOOGLE CALENDAR EVENTS:");
+    console.log(response.result.items);
+
+    alert("Calendar connected successfully!");
+  });
+}
