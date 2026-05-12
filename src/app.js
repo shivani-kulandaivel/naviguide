@@ -8,7 +8,7 @@ const App = (() => {
     setupNav();
     setupApiKey();
   }
-async
+
   function setupNav() {
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => {
