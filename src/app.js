@@ -162,9 +162,8 @@ async function loadGoogleCalendar() {
       orderBy: "startTime"
     });
 
-    console.log("GOOGLE CALENDAR EVENTS:");
     console.log(response.result.items);
 
-    alert("Calendar connected successfully!");
+    alert("Calendar connected!");
   });
 }
