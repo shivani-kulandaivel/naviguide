@@ -11,6 +11,12 @@ function renderToday() {
       </div>
     </div>
 
+    <div style="margin-bottom:16px">
+      <button class="btn-primary" onclick="loadGoogleCalendar()">
+        Connect Google Calendar
+      </button>
+    </div>
+
     <div class="suggest" id="today-suggest">
       <div class="suggest-label">AI route suggestion</div>
       <div class="suggest-title">Optimized day ahead</div>
@@ -53,20 +59,7 @@ function renderToday() {
 
     <div class="card">
       <div class="card-label">Route map</div>
-      <div class="map-box">
-        <svg width="100%" height="100%" viewBox="0 0 500 140">
-          <line x1="80" y1="80" x2="220" y2="50" stroke="rgba(184,245,90,0.4)" stroke-width="1.5" stroke-dasharray="5 4"/>
-          <line x1="220" y1="50" x2="380" y2="95" stroke="rgba(184,245,90,0.4)" stroke-width="1.5" stroke-dasharray="5 4"/>
-          <line x1="380" y1="95" x2="80" y2="80" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3 5"/>
-          <circle cx="80" cy="80" r="8" fill="#b8f55a"/>
-          <text x="80" y="66" text-anchor="middle" font-size="10" fill="#b8f55a" font-family="DM Mono, monospace">Home</text>
-          <circle cx="220" cy="50" r="8" fill="#5acfff"/>
-          <text x="220" y="36" text-anchor="middle" font-size="10" fill="#5acfff" font-family="DM Mono, monospace">Lunch</text>
-          <circle cx="380" cy="95" r="8" fill="#7de8a0"/>
-          <text x="380" y="81" text-anchor="middle" font-size="10" fill="#7de8a0" font-family="DM Mono, monospace">Gym</text>
-          <text x="250" y="132" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.2)" font-family="DM Mono, monospace">dashed = suggested return</text>
-        </svg>
-      </div>
+      <div id="map" class="map-box"></div>
     </div>
 
     <div class="card">
