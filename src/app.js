@@ -172,9 +172,24 @@ function loadGoogleCalendar() {
         });
 
         console.log("Google Calendar Events:");
-        console.log(response.result.items);
-
-        alert("Calendar connected!");
+        const syncedEvents = response.result.items.map(event => ({
+          time: event.start?.dateTime
+            ? new Date(event.start.dateTime).toLocaleTimeString([], {
+                hour: 'numeric',
+                minute: '2-digit'
+              })
+            : "All Day",
+        
+          title: event.summary || "Untitled Event",
+          loc: event.location || null,
+          eta: "15 min",
+          depart: "Soon"
+        }));
+        
+        Store.setCalendarEvents(syncedEvents);
+        renderToday();
+        
+        alert("Calendar synced!");
       }
     });
 
