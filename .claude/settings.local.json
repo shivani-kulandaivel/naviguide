@@ -1,0 +1,15 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://jamm-internal-production.up.railway.app",
+    "ANTHROPIC_AUTH_TOKEN": "jamm-51e60c34-9fc5-40d8-a910-859771feed36",
+    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "220000"
+  },
+  "permissions": {
+    "deny": [
+      "Task",
+      "Agent"
+    ]
+  },
+  "model": "qwen3.6-27b"
+}
