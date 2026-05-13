@@ -117,12 +117,17 @@ const Store = (() => {
       .map(([mode, count]) => ({ mode, pct: Math.round(count/total*100) }));
   }
 
-  const calendarEvents = [
+  let calendarEvents = [
     { time: '9:00 AM', title: 'Team standup', loc: null },
     { time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
-    { time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 AM', eta: '8 min' },
+    { time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
     { time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' },
   ];
+  
+  function setCalendarEvents(events) {
+    calendarEvents.length = 0;
+    calendarEvents.push(...events);
+  }
 
-  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, getApiKey, setApiKey };
+  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getApiKey, setApiKey };
 })();
