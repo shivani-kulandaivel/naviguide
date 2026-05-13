@@ -139,31 +139,45 @@ document.querySelector('.api-status').addEventListener('click', showApiKeyPrompt
 
 document.addEventListener('DOMContentLoaded', App.init);
 
-async function loadGoogleCalendar() {
-  gapi.load("client:auth2", async () => {
-
+function loadGoogleCalendar() {
+  gapi.load("client", async () => {
     await gapi.client.init({
       apiKey: GOOGLE_API_KEY,
-      clientId: GOOGLE_CLIENT_ID,
       discoveryDocs: [
         "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"
-      ],
-      scope: "https://www.googleapis.com/auth/calendar.readonly"
+      ]
     });
 
-    await gapi.auth2.getAuthInstance().signIn();
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/calendar.readonly",
+      callback: async (tokenResponse) => {
+        if (tokenResponse.error) {
+          console.error(tokenResponse);
+          alert("Google Calendar connection failed.");
+          return;
+        }
 
-    const response = await gapi.client.calendar.events.list({
-      calendarId: "primary",
-      timeMin: new Date().toISOString(),
-      showDeleted: false,
-      singleEvents: true,
-      maxResults: 10,
-      orderBy: "startTime"
+        gapi.client.setToken({
+          access_token: tokenResponse.access_token
+        });
+
+        const response = await gapi.client.calendar.events.list({
+          calendarId: "primary",
+          timeMin: new Date().toISOString(),
+          showDeleted: false,
+          singleEvents: true,
+          maxResults: 10,
+          orderBy: "startTime"
+        });
+
+        console.log("Google Calendar Events:");
+        console.log(response.result.items);
+
+        alert("Calendar connected!");
+      }
     });
 
-    console.log(response.result.items);
-
-    alert("Calendar connected!");
+    tokenClient.requestAccessToken();
   });
 }
