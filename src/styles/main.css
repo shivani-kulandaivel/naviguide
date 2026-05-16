@@ -922,6 +922,61 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   gap: 6px;
 }
 
+.disc-modal-gaps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.disc-modal-gap-btn {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  text-align: left;
+  font-family: var(--font-mono);
+}
+
+.disc-modal-gap-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+.disc-modal-gap-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.disc-modal-gap-badge {
+  margin-top: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+}
+
+.disc-modal-gap-duration {
+  font-size: 12px;
+  color: var(--text2);
+  white-space: nowrap;
+}
+
+.disc-modal-empty {
+  padding: 14px 12px;
+  background: var(--bg2);
+  border: 1px dashed var(--border);
+  border-radius: var(--r);
+  color: var(--text2);
+}
+
 .disc-modal-event-btn {
   display: grid;
   grid-template-columns: 50px 1fr auto auto;

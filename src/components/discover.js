@@ -86,6 +86,82 @@ const TYPE_COLOR = {
   bakery: '#b8f55a', default: '#c1abeb',
 };
 
+function timeStringToMinutes(timeStr) {
+  const match = (timeStr || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+  if (!match) return null;
+  let hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  const ampm = (match[3] || '').toUpperCase();
+  if (ampm === 'PM' && hour !== 12) hour += 12;
+  if (ampm === 'AM' && hour === 12) hour = 0;
+  return hour * 60 + minute;
+}
+
+function minutesToTimeString(minutes) {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const normalizedHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${normalizedHour}:${String(minute).padStart(2, '0')} ${ampm}`;
+}
+
+function getEstimatedVisitDuration(type) {
+  if (type === 'restaurant') return 60;
+  if (type === 'café') return 40;
+  if (type === 'park') return 45;
+  if (type === 'market') return 35;
+  if (type === 'bookstore') return 40;
+  if (type === 'gym') return 50;
+  return 45;
+}
+
+function buildScheduleGaps(events, minVisitMinutes) {
+  const todayStart = 8 * 60;
+  const todayEnd = 22 * 60;
+  const sortedEvents = [...events]
+    .map(e => ({ ...e, minutes: timeStringToMinutes(e.time) }))
+    .filter(e => typeof e.minutes === 'number')
+    .sort((a, b) => a.minutes - b.minutes);
+
+  const gaps = [];
+  let previousEnd = todayStart;
+
+  sortedEvents.forEach(event => {
+    if (event.minutes > previousEnd) {
+      const gapDuration = event.minutes - previousEnd;
+      gaps.push({
+        startMin: previousEnd,
+        endMin: event.minutes,
+        duration: gapDuration,
+        label: `${minutesToTimeString(previousEnd)} — ${minutesToTimeString(event.minutes)}`,
+        color: gapDuration >= minVisitMinutes * 2 ? '#d2f8d6' : gapDuration >= minVisitMinutes ? '#fff3c4' : '#ffd6d6',
+        badge: gapDuration >= minVisitMinutes * 2 ? 'Spacious' : gapDuration >= minVisitMinutes ? 'OK' : 'Tight',
+      });
+    }
+    previousEnd = Math.max(previousEnd, event.minutes + 30);
+  });
+
+  if (todayEnd > previousEnd) {
+    const gapDuration = todayEnd - previousEnd;
+    gaps.push({
+      startMin: previousEnd,
+      endMin: todayEnd,
+      duration: gapDuration,
+      label: `${minutesToTimeString(previousEnd)} — ${minutesToTimeString(todayEnd)}`,
+      color: gapDuration >= minVisitMinutes * 2 ? '#d2f8d6' : gapDuration >= minVisitMinutes ? '#fff3c4' : '#ffd6d6',
+      badge: gapDuration >= minVisitMinutes * 2 ? 'Spacious' : gapDuration >= minVisitMinutes ? 'OK' : 'Tight',
+    });
+  }
+
+  return gaps;
+}
+
+function getTodayEvents() {
+  const today = new Date().toISOString().split('T')[0];
+  return Store.calendarEvents
+    .filter(e => e.date === today && e.time && e.time !== '—' && e.time !== 'All Day');
+}
+
 function renderDiscover() {
   const pane = document.getElementById('tab-discover');
 
@@ -258,7 +334,10 @@ function showScheduleModal(card) {
   const root = document.getElementById('disc-modal-root');
   if (!root) return;
 
-  const events = Store.calendarEvents;
+  const events = getTodayEvents();
+  const estimatedDuration = getEstimatedVisitDuration(card.type);
+  const gaps = buildScheduleGaps(events, estimatedDuration);
+  DiscoverState.scheduleGaps = gaps;
   const color = TYPE_COLOR[card.type] || TYPE_COLOR.default;
   const emoji = TYPE_EMOJI[card.type] || '📍';
 
@@ -275,19 +354,23 @@ function showScheduleModal(card) {
         </div>
 
         <div class="disc-modal-body">
-          <div class="disc-modal-label">Add before or after which event?</div>
-          <div class="disc-modal-events">
-            ${events.map((e, i) => `
-              <button class="disc-modal-event-btn" onclick="confirmAddToSchedule('${card.id}', ${i})">
-                <div class="disc-modal-event-time">${e.time}</div>
-                <div class="disc-modal-event-name">${e.title}</div>
-                ${e.loc ? `<div class="disc-modal-event-loc">${e.loc}</div>` : ''}
-                <div class="disc-modal-event-arrow">→</div>
+          <div class="disc-modal-label">Estimated visit</div>
+          <div class="disc-modal-sub" style="margin-bottom:12px">${estimatedDuration} min estimated stay for this stop</div>
+
+          <div class="disc-modal-label">Choose a gap</div>
+          <div class="disc-modal-gaps">
+            ${gaps.length ? gaps.map((gap, i) => `
+              <button class="disc-modal-gap-btn" onclick="confirmAddToSchedule('${card.id}', ${i})" style="background:${gap.color};">
+                <div>
+                  <div class="disc-modal-gap-time">${gap.label}</div>
+                  <div class="disc-modal-gap-badge">${gap.badge}</div>
+                </div>
+                <div class="disc-modal-gap-duration">${gap.duration} min available</div>
               </button>
-            `).join('')}
+            `).join('') : '<div class="disc-modal-empty">No available gaps found today. Use manual add below.</div>'}
           </div>
 
-          <div class="disc-modal-label" style="margin-top:16px">Or add as a new stop</div>
+          <div class="disc-modal-label" style="margin-top:16px">Or add with a custom time</div>
           <div class="form-grid" style="grid-template-columns:1fr 1fr;gap:8px">
             <div class="field">
               <label>Time</label>
@@ -312,22 +395,24 @@ function closeScheduleModal() {
   if (root) root.innerHTML = '';
 }
 
-async function confirmAddToSchedule(cardId, eventIdx) {
+async function confirmAddToSchedule(cardId, gapIdx) {
   const card = DiscoverState.cards.find(c => c.id === cardId);
   if (!card) return;
-  const event = Store.calendarEvents[eventIdx];
-  card.addedTo = event ? event.title : 'schedule';
+  const gap = DiscoverState.scheduleGaps?.[gapIdx];
+  const today = new Date().toISOString().split('T')[0];
+  const startTime = gap ? minutesToTimeString(gap.startMin) : '10:00 AM';
+  card.addedTo = `Scheduled at ${startTime}`;
 
   const newEvent = {
-    date: event?.date || new Date().toISOString().split('T')[0],
-    time: '—',
+    date: today,
+    time: startTime,
     title: `Stop: ${card.name}`,
     loc: card.address,
     note: card.why,
   };
 
   if (window.createGoogleCalendarEvent) {
-    const eventDateTime = window.buildGoogleEventDateTime(event?.time || '10:00');
+    const eventDateTime = window.buildGoogleEventDateTime(startTime);
     const resource = {
       summary: newEvent.title,
       location: newEvent.loc,
@@ -346,7 +431,12 @@ async function confirmAddToSchedule(cardId, eventIdx) {
     }
   }
 
-  Store.calendarEvents.splice(eventIdx, 0, newEvent);
+  Store.calendarEvents.push(newEvent);
+  Store.calendarEvents.sort((a, b) => {
+    const aMin = timeStringToMinutes(a.time) ?? 9999;
+    const bMin = timeStringToMinutes(b.time) ?? 9999;
+    return aMin - bMin;
+  });
   closeScheduleModal();
   Store.setCalendarEvents(Store.calendarEvents);
   refreshDiscoverCards();
