@@ -40,10 +40,13 @@ function renderToday() {
       </div>
     </div>
 
-    <div style="margin-bottom:16px">
-      <button class="btn-primary" onclick="loadGoogleCalendar()">
+    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button id="google-calendar-connect-btn" class="btn-primary" onclick="loadGoogleCalendar()">
         Connect Google Calendar
       </button>
+      <span id="google-calendar-activity" style="font-size:14px;color:var(--text2);">
+        Google Calendar not connected
+      </span>
     </div>
 
     <div class="suggest" id="today-suggest">
@@ -91,4 +94,5 @@ function renderToday() {
       <div class="ai-response" id="today-ai-out"></div>
     </div>
   `;
+  if (window.updateGoogleCalendarStatus) updateGoogleCalendarStatus();
 }

@@ -1,12 +1,13 @@
 const GOOGLE_CLIENT_ID = "818886256150-8dapdbmbhiq57taek1b62mr8veikhafr.apps.googleusercontent.com"; // SENSITIVE
 const GOOGLE_API_KEY = "AIzaSyAg5zU-Tq3ct8eZb8Mo127rS7INYrth1es"; // SENSITIVE
 const App = (() => {
-  function init() {
+  async function init() {
     renderToday();
     renderLog();
     renderDiscover();
     setupNav();
     setupApiKey();
+    await restoreGoogleCalendarSession();
   }
   // comment
 
@@ -17,6 +18,9 @@ const App = (() => {
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+        if (btn.dataset.tab === 'today') renderToday();
+        if (btn.dataset.tab === 'discover') renderDiscover();
       });
     });
   }
@@ -33,6 +37,226 @@ const App = (() => {
       txt.textContent = 'No API key';
     }
   }
+
+  const GOOGLE_CALENDAR_TOKEN_KEY = 'wayfarer_google_calendar_access_token';
+  const GOOGLE_CALENDAR_TOKEN_EXPIRES_KEY = 'wayfarer_google_calendar_access_token_expires';
+
+  let googleCalendarTokenClient = null;
+  let googleCalendarConnected = false;
+  let googleCalendarClientReady = false;
+  let googleCalendarInitPromise = null;
+  const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+
+  function saveGoogleCalendarToken(accessToken, expiresIn) {
+    try {
+      const expiresAt = Date.now() + (expiresIn || 3600) * 1000 - 60000;
+      localStorage.setItem(GOOGLE_CALENDAR_TOKEN_KEY, accessToken);
+      localStorage.setItem(GOOGLE_CALENDAR_TOKEN_EXPIRES_KEY, expiresAt.toString());
+    } catch {}
+  }
+
+  function clearGoogleCalendarToken() {
+    try {
+      localStorage.removeItem(GOOGLE_CALENDAR_TOKEN_KEY);
+      localStorage.removeItem(GOOGLE_CALENDAR_TOKEN_EXPIRES_KEY);
+    } catch {}
+  }
+
+  function getSavedGoogleCalendarToken() {
+    try {
+      const token = localStorage.getItem(GOOGLE_CALENDAR_TOKEN_KEY);
+      const expiresAt = parseInt(localStorage.getItem(GOOGLE_CALENDAR_TOKEN_EXPIRES_KEY), 10);
+      if (!token || Number.isNaN(expiresAt) || Date.now() > expiresAt) return null;
+      return token;
+    } catch {
+      return null;
+    }
+  }
+
+  async function restoreGoogleCalendarSession() {
+    const savedToken = getSavedGoogleCalendarToken();
+    if (!savedToken) return false;
+
+    if (!googleCalendarClientReady) {
+      await initGoogleCalendarClient();
+    }
+
+    try {
+      gapi.client.setToken({ access_token: savedToken });
+      googleCalendarConnected = true;
+      updateGoogleCalendarStatus();
+      await syncGoogleCalendar();
+      renderToday();
+      return true;
+    } catch (err) {
+      clearGoogleCalendarToken();
+      console.warn('Failed to restore Google Calendar session', err);
+      return false;
+    }
+  }
+
+  function updateGoogleCalendarStatus() {
+    const btn = document.getElementById('google-calendar-connect-btn');
+    const status = document.getElementById('google-calendar-activity');
+    if (btn) {
+      btn.textContent = googleCalendarConnected ? 'Refresh Google Calendar' : 'Connect Google Calendar';
+    }
+    if (status) {
+      status.textContent = googleCalendarConnected ? 'Connected to Google Calendar' : 'Google Calendar not connected';
+    }
+  }
+
+  async function initGoogleCalendarClient() {
+    if (googleCalendarInitPromise) return googleCalendarInitPromise;
+    googleCalendarInitPromise = new Promise((resolve, reject) => {
+      gapi.load('client', async () => {
+        try {
+          await gapi.client.init({
+            apiKey: GOOGLE_API_KEY,
+            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest']
+          });
+          googleCalendarClientReady = true;
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+    return googleCalendarInitPromise;
+  }
+
+  function ensureGoogleCalendarTokenClient() {
+    if (!googleCalendarTokenClient) {
+      googleCalendarTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_CALENDAR_SCOPE,
+        callback: async (tokenResponse) => {
+          if (tokenResponse.error) {
+            console.error(tokenResponse);
+            alert('Google Calendar authorization failed.');
+            return;
+          }
+
+          gapi.client.setToken({ access_token: tokenResponse.access_token });
+          saveGoogleCalendarToken(tokenResponse.access_token, tokenResponse.expires_in);
+          googleCalendarConnected = true;
+          updateGoogleCalendarStatus();
+
+          try {
+            await syncGoogleCalendar();
+            renderToday();
+          } catch (err) {
+            console.error('Google sync failed', err);
+          }
+        }
+      });
+    }
+    return googleCalendarTokenClient;
+  }
+
+  function isGoogleCalendarConnected() {
+    return googleCalendarConnected && !!gapi.client.getToken()?.access_token;
+  }
+
+  function parseCalendarTime(timeStr) {
+    if (!timeStr || timeStr === '—' || timeStr === 'All Day') return null;
+    const parts = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (!parts) return null;
+    let hour = Number(parts[1]);
+    const minute = Number(parts[2]);
+    const ampm = parts[3]?.toUpperCase();
+    if (ampm) {
+      if (ampm === 'PM' && hour !== 12) hour += 12;
+      if (ampm === 'AM' && hour === 12) hour = 0;
+    }
+    return { hour, minute };
+  }
+
+  function buildGoogleEventDateTime(timeStr, durationMinutes = 45) {
+    const time = parseCalendarTime(timeStr);
+    const start = new Date();
+    if (time) {
+      start.setHours(time.hour, time.minute, 0, 0);
+    }
+    const end = new Date(start.getTime() + durationMinutes * 60000);
+    return {
+      start: { dateTime: start.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+      end: { dateTime: end.toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+    };
+  }
+
+  async function syncGoogleCalendar() {
+    if (!isGoogleCalendarConnected()) return;
+    if (!googleCalendarClientReady) await initGoogleCalendarClient();
+
+    const response = await gapi.client.calendar.events.list({
+      calendarId: 'primary',
+      timeMin: new Date().toISOString(),
+      showDeleted: false,
+      singleEvents: true,
+      maxResults: 20,
+      orderBy: 'startTime'
+    });
+
+    const remoteEvents = response.result.items.map(event => {
+      const startISO = event.start?.dateTime || event.start?.date || null;
+      return {
+        googleId: event.id,
+        date: startISO,
+        time: event.start?.dateTime
+          ? new Date(event.start.dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+          : 'All Day',
+        title: event.summary || 'Untitled Event',
+        loc: event.location || null
+      };
+    });
+
+    const existingLocal = Store.calendarEvents.filter(e => !e.googleId);
+    const merged = [...existingLocal];
+    remoteEvents.forEach(remote => {
+      if (!merged.some(local => local.googleId === remote.googleId)) {
+        merged.push(remote);
+      }
+    });
+
+    Store.setCalendarEvents(merged);
+  }
+
+  async function createGoogleCalendarEvent(resource) {
+    if (!isGoogleCalendarConnected()) {
+      await restoreGoogleCalendarSession();
+      if (!isGoogleCalendarConnected()) return null;
+    }
+    if (!googleCalendarClientReady) await initGoogleCalendarClient();
+
+    const response = await gapi.client.calendar.events.insert({
+      calendarId: 'primary',
+      resource
+    });
+    return response.result;
+  }
+
+  function getTodayDateString() {
+    return new Date().toISOString().split('T')[0];
+  }
+
+  async function loadGoogleCalendar() {
+    try {
+      await initGoogleCalendarClient();
+      ensureGoogleCalendarTokenClient();
+      const restored = await restoreGoogleCalendarSession();
+      if (!restored) {
+        googleCalendarTokenClient.requestAccessToken({ prompt: '' });
+      }
+    } catch (err) {
+      console.error('Google Calendar init failed', err);
+      alert('Unable to initialize Google Calendar.');
+    }
+  }
+
+  window.createGoogleCalendarEvent = createGoogleCalendarEvent;
+  window.buildGoogleEventDateTime = buildGoogleEventDateTime;
+  window.updateGoogleCalendarStatus = updateGoogleCalendarStatus;
 
   return { init };
 })();

@@ -1,5 +1,6 @@
 const Store = (() => {
   const STORAGE_KEY = 'wayfarer_trips';
+  const CALENDAR_EVENTS_KEY = 'wayfarer_calendar_events';
   const API_KEY_KEY = 'wayfarer_api_key';
   const GOOGLE_API_KEY_KEY = 'wayfarer_google_api_key';
   const GOOGLE_CLIENT_ID_KEY = 'wayfarer_google_client_id';
@@ -59,6 +60,31 @@ const Store = (() => {
   }
 
   let trips = load();
+
+  function loadCalendarEvents() {
+    try {
+      const raw = localStorage.getItem(CALENDAR_EVENTS_KEY);
+      return raw ? JSON.parse(raw) : [
+        { time: '9:00 AM', title: 'Team standup', loc: null },
+        { time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
+        { time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
+        { time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' }
+      ];
+    } catch {
+      return [
+        { time: '9:00 AM', title: 'Team standup', loc: null },
+        { time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
+        { time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
+        { time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' }
+      ];
+    }
+  }
+
+  function saveCalendarEvents(events) {
+    try { localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(events)); } catch {}
+  }
+
+  let calendarEvents = loadCalendarEvents();
 
   function addTrip(t) {
     t.date = new Date().toISOString().split('T')[0];
@@ -135,16 +161,11 @@ const Store = (() => {
       .map(([mode, count]) => ({ mode, pct: Math.round(count/total*100) }));
   }
 
-  let calendarEvents = [
-    { time: '9:00 AM', title: 'Team standup', loc: null },
-    { time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
-    { time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
-    { time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' },
-  ];
-  
   function setCalendarEvents(events) {
+    const items = Array.isArray(events) ? events.slice() : [];
     calendarEvents.length = 0;
-    calendarEvents.push(...events);
+    calendarEvents.push(...items);
+    saveCalendarEvents(calendarEvents);
   }
 
   return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId };
