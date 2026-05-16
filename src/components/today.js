@@ -1,3 +1,32 @@
+function formatCalDate(date) {
+  return date ? new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date';
+}
+
+function renderCalendarGroups(events) {
+  const grouped = events.reduce((acc, e) => {
+    const label = formatCalDate(e.date);
+    if (!acc[label]) acc[label] = [];
+    acc[label].push(e);
+    return acc;
+  }, {});
+
+  return Object.entries(grouped).map(([label, dayEvents]) => `
+    <div class="cal-day-group">
+      <div class="cal-day-divider">${label}</div>
+      ${dayEvents.map(e => `
+        <div class="cal-row">
+          <div class="cal-time">${e.time}</div>
+          <div class="cal-body">
+            <div class="cal-title">${e.title}</div>
+            ${e.loc ? `<div class="cal-loc">${e.loc}</div>` : '<div class="cal-loc" style="color:var(--text3)">Remote</div>'}
+            ${e.depart ? `<div class="cal-pill">Leave by ${e.depart} · ~${e.eta}</div>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
 function renderToday() {
   const pane = document.getElementById('tab-today');
   const stats = Store.getStats();
@@ -45,16 +74,7 @@ function renderToday() {
 
     <div class="card">
       <div class="card-label">Calendar</div>
-      ${events.map(e => `
-        <div class="cal-row">
-          <div class="cal-time">${e.time}</div>
-          <div class="cal-body">
-            <div class="cal-title">${e.title}</div>
-            ${e.loc ? `<div class="cal-loc">${e.loc}</div>` : '<div class="cal-loc" style="color:var(--text3)">Remote</div>'}
-            ${e.depart ? `<div class="cal-pill">Leave by ${e.depart} · ~${e.eta}</div>` : ''}
-          </div>
-        </div>
-      `).join('')}
+      ${renderCalendarGroups(events)}
     </div>
 
     <div class="card">

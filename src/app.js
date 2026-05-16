@@ -173,19 +173,20 @@ function loadGoogleCalendar() {
         });
 
         console.log("Google Calendar Events:");
-        const syncedEvents = response.result.items.map(event => ({
-          time: event.start?.dateTime
-            ? new Date(event.start.dateTime).toLocaleTimeString([], {
-                hour: 'numeric',
-                minute: '2-digit'
-              })
-            : "All Day",
-        
-          title: event.summary || "Untitled Event",
-          loc: event.location || null,
-          eta: "15 min",
-          depart: "Soon"
-        }));
+        const syncedEvents = response.result.items.map(event => {
+          const startISO = event.start?.dateTime || event.start?.date || null;
+          return {
+            date: startISO,
+            time: event.start?.dateTime
+              ? new Date(event.start.dateTime).toLocaleTimeString([], {
+                  hour: 'numeric',
+                  minute: '2-digit'
+                })
+              : "All Day",
+            title: event.summary || "Untitled Event",
+            loc: event.location || null
+          };
+        });
         
         Store.setCalendarEvents(syncedEvents);
         renderToday();

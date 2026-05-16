@@ -1,6 +1,8 @@
 const Store = (() => {
   const STORAGE_KEY = 'wayfarer_trips';
   const API_KEY_KEY = 'wayfarer_api_key';
+  const GOOGLE_API_KEY_KEY = 'wayfarer_google_api_key';
+  const GOOGLE_CLIENT_ID_KEY = 'wayfarer_google_client_id';
 
   const seedTrips = [
     { from: 'Home', to: 'Work', dur: 34, mode: 'Driving', purpose: 'Commute', date: daysAgo(1) },
@@ -38,6 +40,22 @@ const Store = (() => {
 
   function setApiKey(key) {
     localStorage.setItem(API_KEY_KEY, key);
+  }
+
+  function getGoogleApiKey() {
+    return localStorage.getItem(GOOGLE_API_KEY_KEY) || '';
+  }
+
+  function setGoogleApiKey(key) {
+    localStorage.setItem(GOOGLE_API_KEY_KEY, key);
+  }
+
+  function getGoogleClientId() {
+    return localStorage.getItem(GOOGLE_CLIENT_ID_KEY) || '';
+  }
+
+  function setGoogleClientId(id) {
+    localStorage.setItem(GOOGLE_CLIENT_ID_KEY, id);
   }
 
   let trips = load();
@@ -129,5 +147,5 @@ const Store = (() => {
     calendarEvents.push(...events);
   }
 
-  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getApiKey, setApiKey };
+  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId };
 })();
