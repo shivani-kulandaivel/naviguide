@@ -32,6 +32,30 @@ function renderToday() {
   const stats = Store.getStats();
   const events = Store.calendarEvents;
 
+  function timeToMinutes(timeStr) {
+    if (!timeStr) return 9999;
+    const m = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (!m) return timeStr === 'All Day' ? 0 : 9999;
+    let h = parseInt(m[1], 10);
+    const mm = parseInt(m[2], 10);
+    const ampm = (m[3] || '').toUpperCase();
+    if (ampm === 'PM' && h !== 12) h += 12;
+    if (ampm === 'AM' && h === 12) h = 0;
+    return h * 60 + mm;
+  }
+
+  function normalizeDateIso(d) {
+    if (!d) return '';
+    try { return new Date(d).toISOString().split('T')[0]; } catch { return '' }
+  }
+
+  const sortedEvents = events.slice().sort((a, b) => {
+    const da = normalizeDateIso(a.date || a.start || '');
+    const db = normalizeDateIso(b.date || b.start || '');
+    if (da !== db) return da.localeCompare(db);
+    return timeToMinutes(a.time) - timeToMinutes(b.time);
+  });
+
   pane.innerHTML = `
     <div class="page-header">
       <div>
@@ -60,13 +84,13 @@ function renderToday() {
       <div class="ai-response" id="suggest-ai-out"></div>
     </div>
 
-    <div class="stat-grid">
+      <div class="stat-grid">
       <div class="stat-card">
-        <div class="stat-val">${events.filter(e=>e.loc).length}</div>
+        <div class="stat-val">${sortedEvents.filter(e=>e.loc).length}</div>
         <div class="stat-lbl">trips today</div>
       </div>
       <div class="stat-card">
-        <div class="stat-val">${events.filter(e=>e.loc).reduce((a,e)=>a+parseInt(e.eta||0),0)} min</div>
+        <div class="stat-val">${sortedEvents.filter(e=>e.loc).reduce((a,e)=>a+parseInt(e.eta||0),0)} min</div>
         <div class="stat-lbl">travel time</div>
       </div>
       <div class="stat-card">
@@ -75,9 +99,9 @@ function renderToday() {
       </div>
     </div>
 
-    <div class="card">
+      <div class="card">
       <div class="card-label">Calendar</div>
-      ${renderCalendarGroups(events)}
+      ${renderCalendarGroups(sortedEvents)}
     </div>
 
     <div class="card">

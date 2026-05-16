@@ -256,6 +256,8 @@ const App = (() => {
 
   window.createGoogleCalendarEvent = createGoogleCalendarEvent;
   window.buildGoogleEventDateTime = buildGoogleEventDateTime;
+  window.loadGoogleCalendar = loadGoogleCalendar;
+  window.isGoogleCalendarConnected = isGoogleCalendarConnected;
   window.updateGoogleCalendarStatus = updateGoogleCalendarStatus;
 
   return { init };

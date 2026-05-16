@@ -218,6 +218,40 @@ function renderDiscover() {
   `;
 }
 
+// Try to create a Google Calendar event, prompting auth if needed and retrying briefly
+async function tryCreateGoogleEventWithAuth(resource, timeout = 15000) {
+  if (typeof window.createGoogleCalendarEvent !== 'function') return null;
+
+  // First attempt
+  try {
+    const res = await window.createGoogleCalendarEvent(resource);
+    if (res) return res;
+  } catch (e) {
+    console.warn('Initial Google create failed', e);
+  }
+
+  // If not created, trigger auth flow if available
+  if (typeof window.loadGoogleCalendar === 'function') {
+    try {
+      window.loadGoogleCalendar();
+    } catch (e) { console.warn('loadGoogleCalendar failed', e); }
+  }
+
+  // Poll for up to timeout ms to see if creation succeeds after auth
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const res2 = await window.createGoogleCalendarEvent(resource);
+      if (res2) return res2;
+    } catch (e) {
+      // ignore and retry
+    }
+  }
+
+  return null;
+}
+
 // ── Context strip ────────────────────────────────────────────────────────────
 function buildContextStrip() {
   const events = Store.calendarEvents.filter(e => e.loc);
@@ -411,7 +445,7 @@ async function confirmAddToSchedule(cardId, gapIdx) {
     note: card.why,
   };
 
-  if (window.createGoogleCalendarEvent) {
+  if (typeof window.createGoogleCalendarEvent === 'function') {
     const eventDateTime = window.buildGoogleEventDateTime(startTime);
     const resource = {
       summary: newEvent.title,
@@ -421,7 +455,7 @@ async function confirmAddToSchedule(cardId, gapIdx) {
       end: eventDateTime.end
     };
     try {
-      const result = await window.createGoogleCalendarEvent(resource);
+      const result = await tryCreateGoogleEventWithAuth(resource);
       if (result?.id) newEvent.googleId = result.id;
       if (result?.start?.dateTime || result?.start?.date) {
         newEvent.date = result.start.dateTime || result.start.date;
@@ -469,7 +503,7 @@ async function confirmCustomAdd(cardId) {
     note,
   };
 
-  if (window.createGoogleCalendarEvent) {
+  if (typeof window.createGoogleCalendarEvent === 'function') {
     const eventDateTime = window.buildGoogleEventDateTime(timeStr);
     const resource = {
       summary: newEvent.title,
@@ -479,7 +513,7 @@ async function confirmCustomAdd(cardId) {
       end: eventDateTime.end
     };
     try {
-      const result = await window.createGoogleCalendarEvent(resource);
+      const result = await tryCreateGoogleEventWithAuth(resource);
       if (result?.id) newEvent.googleId = result.id;
       if (result?.start?.dateTime || result?.start?.date) {
         newEvent.date = result.start.dateTime || result.start.date;

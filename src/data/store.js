@@ -80,8 +80,26 @@ const Store = (() => {
     }
   }
 
+  function normalizeToDateOnly(d) {
+    if (!d) return null;
+    try {
+      return new Date(d).toISOString().split('T')[0];
+    } catch { return null; }
+  }
+
+  function isOnOrAfterToday(dateStr) {
+    const d = normalizeToDateOnly(dateStr);
+    if (!d) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return d >= today;
+  }
+
   function saveCalendarEvents(events) {
-    try { localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(events)); } catch {}
+    try {
+      // persist only today and future events
+      const filtered = (events || []).filter(e => isOnOrAfterToday(e.date));
+      localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(filtered));
+    } catch {}
   }
 
   let calendarEvents = loadCalendarEvents();
@@ -163,8 +181,10 @@ const Store = (() => {
 
   function setCalendarEvents(events) {
     const items = Array.isArray(events) ? events.slice() : [];
+    // keep only today's and future events
+    const filtered = items.filter(e => isOnOrAfterToday(e.date));
     calendarEvents.length = 0;
-    calendarEvents.push(...items);
+    calendarEvents.push(...filtered);
     saveCalendarEvents(calendarEvents);
   }
 
