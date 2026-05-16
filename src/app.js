@@ -8,6 +8,7 @@ const App = (() => {
     setupNav();
     setupApiKey();
   }
+  // comment
 
   function setupNav() {
     document.querySelectorAll('.nav-item').forEach(btn => {
