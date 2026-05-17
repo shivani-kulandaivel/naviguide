@@ -1,3 +1,6 @@
+// Habits tab rendering logic.
+// Analyzes stored trip data and shows route, day, and mode summaries.
+// Render the Habits tab, showing summaries of trip patterns and AI insight controls.
 function renderHabits() {
   const pane = document.getElementById('tab-habits');
   const stats = Store.getStats();
@@ -80,6 +83,7 @@ function renderHabits() {
   `;
 }
 
+// Build the prompt for AI analysis of the user's travel habits.
 function buildHabitsPrompt() {
   const routes = Store.getFrequentRoutes();
   const stats = Store.getStats();
@@ -87,6 +91,7 @@ function buildHabitsPrompt() {
   return `Analyze my travel habits: ${stats.count} trips logged, avg ${stats.avgDur} min, busiest day is ${stats.topDay}. Top routes: ${routes.slice(0,3).map(r=>`${r.from}→${r.to} (${r.count}x, avg ${r.avgDur}min, ${r.topMode})`).join('; ')}. Mode split: ${modes.map(m=>`${m.mode} ${m.pct}%`).join(', ')}. Give me 3 specific insights about my travel patterns. Be concise.`;
 }
 
+// Build the prompt for AI optimization recommendations based on route patterns.
 function buildOptimizePrompt() {
   const routes = Store.getFrequentRoutes();
   return `Based on these routes: ${routes.slice(0,4).map(r=>`${r.from}→${r.to} (avg ${r.avgDur}min, ${r.topMode})`).join('; ')}, suggest 3 specific ways I could optimize my travel — different modes, timing, or route combinations. Be practical and brief.`;

@@ -1,3 +1,6 @@
+// Trip log tab rendering and user interaction.
+// Users can add manual trips and view the saved trip history here.
+// Render the Log tab, including the add-trip form and saved trip history.
 function renderLog() {
   const pane = document.getElementById('tab-log');
   const trips = Store.getTrips();
@@ -64,6 +67,7 @@ function renderLog() {
   `;
 }
 
+// Render the saved trip list rows for the Log tab.
 function renderTripList(trips) {
   if (!trips.length) return '<div class="empty">No trips yet — add one above</div>';
   return trips.slice(0, 20).map((t, i) => `
@@ -78,6 +82,7 @@ function renderTripList(trips) {
   `).join('');
 }
 
+// Handle submission of the add-trip form and refresh the UI.
 function submitTrip() {
   const from = document.getElementById('log-from').value.trim();
   const to = document.getElementById('log-to').value.trim();
@@ -101,12 +106,14 @@ function submitTrip() {
   renderHabits();
 }
 
+// Remove a saved trip and refresh the log/habits views.
 function removeTrip(i) {
   Store.deleteTrip(i);
   renderLog();
   renderHabits();
 }
 
+// Build an AI prompt describing the user's trip history for suggestions.
 function buildLogPrompt() {
   const routes = Store.getFrequentRoutes().slice(0, 4);
   const events = Store.calendarEvents.filter(e => e.loc);

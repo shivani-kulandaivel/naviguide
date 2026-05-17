@@ -1,6 +1,6 @@
 // ── Discover tab ────────────────────────────────────────────────────────────
-// Pulls calendar locations, asks Claude (with web_search) for nearby spots,
-// renders image-card grid + "Add to schedule" flow.
+// Responsible for suggesting local places based on the user's calendar,
+// rendering cards, handling filters, scheduling stops, and calling AI.
 
 const DiscoverState = {
   cards: [],          // { id, name, type, address, why, vicinity, imgUrl, addedTo }
@@ -86,6 +86,7 @@ const TYPE_COLOR = {
   bakery: '#b8f55a', default: '#c1abeb',
 };
 
+// Convert a 12-hour time string into minutes since midnight for schedule math.
 function timeStringToMinutes(timeStr) {
   const match = (timeStr || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
   if (!match) return null;
@@ -97,6 +98,7 @@ function timeStringToMinutes(timeStr) {
   return hour * 60 + minute;
 }
 
+// Convert minutes since midnight back into a friendly AM/PM time label.
 function minutesToTimeString(minutes) {
   const hour = Math.floor(minutes / 60);
   const minute = minutes % 60;
@@ -105,6 +107,7 @@ function minutesToTimeString(minutes) {
   return `${normalizedHour}:${String(minute).padStart(2, '0')} ${ampm}`;
 }
 
+// Estimate how long a stop of each type will take for scheduling suggestions.
 function getEstimatedVisitDuration(type) {
   if (type === 'restaurant') return 60;
   if (type === 'café') return 40;
@@ -115,9 +118,11 @@ function getEstimatedVisitDuration(type) {
   return 45;
 }
 
+// Identify available time gaps between today's calendar events for new stops.
 function buildScheduleGaps(events, minVisitMinutes) {
   const todayStart = 8 * 60;
   const todayEnd = 22 * 60;
+  // Sort todays calendar events so we can discover gaps between them.
   const sortedEvents = [...events]
     .map(e => ({ ...e, minutes: timeStringToMinutes(e.time) }))
     .filter(e => typeof e.minutes === 'number')
@@ -127,6 +132,7 @@ function buildScheduleGaps(events, minVisitMinutes) {
   let previousEnd = todayStart;
 
   sortedEvents.forEach(event => {
+    // If there is free time before this event, add it as a possible gap.
     if (event.minutes > previousEnd) {
       const gapDuration = event.minutes - previousEnd;
       gaps.push({
@@ -141,6 +147,7 @@ function buildScheduleGaps(events, minVisitMinutes) {
     previousEnd = Math.max(previousEnd, event.minutes + 30);
   });
 
+  // If there is remaining free time after the last event, add an evening gap.
   if (todayEnd > previousEnd) {
     const gapDuration = todayEnd - previousEnd;
     gaps.push({
@@ -156,12 +163,15 @@ function buildScheduleGaps(events, minVisitMinutes) {
   return gaps;
 }
 
+// Return today's calendar events that include a location and a time.
 function getTodayEvents() {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   return Store.calendarEvents
-    .filter(e => e.date === today && e.time && e.time !== '—' && e.time !== 'All Day');
+    .filter(e => e.date && e.date.split('T')[0] === today && e.time && e.time !== '—' && e.time !== 'All Day');
 }
 
+// Render the Discover tab UI, including filters, cards, and search controls.
 function renderDiscover() {
   const pane = document.getElementById('tab-discover');
 
@@ -218,11 +228,13 @@ function renderDiscover() {
   `;
 }
 
-// Try to create a Google Calendar event, prompting auth if needed and retrying briefly
+// Try to create a Google Calendar event on behalf of the user.
+// If authorization is missing, it triggers the auth flow and retries.
+// Try creating a Google event and, if auth is missing, trigger login and retry.
 async function tryCreateGoogleEventWithAuth(resource, timeout = 15000) {
   if (typeof window.createGoogleCalendarEvent !== 'function') return null;
 
-  // First attempt
+  // Attempt to create the event immediately if we already have auth.
   try {
     const res = await window.createGoogleCalendarEvent(resource);
     if (res) return res;
@@ -232,6 +244,7 @@ async function tryCreateGoogleEventWithAuth(resource, timeout = 15000) {
 
   // If not created, trigger auth flow if available
   if (typeof window.loadGoogleCalendar === 'function') {
+    // Trigger the Google sign-in flow if authorization failed the first time.
     try {
       window.loadGoogleCalendar();
     } catch (e) { console.warn('loadGoogleCalendar failed', e); }
@@ -253,8 +266,9 @@ async function tryCreateGoogleEventWithAuth(resource, timeout = 15000) {
 }
 
 // ── Context strip ────────────────────────────────────────────────────────────
+// Build the context strip that shows today's calendar locations for the Discover tab.
 function buildContextStrip() {
-  const events = Store.calendarEvents.filter(e => e.loc);
+  const events = getTodayEvents().filter(e => e.loc);
   if (!events.length) return '';
   return `
     <div class="disc-context-label">Today's locations</div>
@@ -270,6 +284,7 @@ function buildContextStrip() {
 }
 
 // ── Filter chips ─────────────────────────────────────────────────────────────
+// Build filter chip buttons for each type of suggested place.
 function buildFilterChips() {
   const types = ['all', ...new Set(DiscoverState.cards.map(c => c.type))];
   return types.map(t => `
@@ -281,6 +296,7 @@ function buildFilterChips() {
 }
 
 // ── Card grid ────────────────────────────────────────────────────────────────
+// Build the card grid markup for displayed suggestion cards.
 function buildCardGrid() {
   const filtered = DiscoverState.activeFilter === 'all'
     ? DiscoverState.cards
@@ -291,6 +307,7 @@ function buildCardGrid() {
   return filtered.map(c => buildCard(c)).join('');
 }
 
+// Render a single discovery card for a suggested place.
 function buildCard(c) {
   const emoji = TYPE_EMOJI[c.type] || TYPE_EMOJI.default;
   const color = TYPE_COLOR[c.type] || TYPE_COLOR.default;
@@ -344,6 +361,7 @@ function buildCard(c) {
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
+// Apply a selected place-type filter and refresh the card grid.
 function discoverSetFilter(type) {
   DiscoverState.activeFilter = type;
   const grid = document.getElementById('disc-grid');
@@ -352,18 +370,21 @@ function discoverSetFilter(type) {
   if (filters) filters.innerHTML = buildFilterChips();
 }
 
+// Open the selected place in Google Maps.
 function discoverOpenMaps(id) {
   const card = DiscoverState.cards.find(c => c.id === id);
   if (!card) return;
   window.open(`https://www.google.com/maps/search/${encodeURIComponent(card.name + ' ' + card.address)}`, '_blank');
 }
 
+// Begin the schedule add flow for a selected suggestion card.
 function discoverAddToSchedule(id) {
   const card = DiscoverState.cards.find(c => c.id === id);
   if (!card) return;
   showScheduleModal(card);
 }
 
+// Show a modal where the user can choose when to schedule a suggested stop.
 function showScheduleModal(card) {
   const root = document.getElementById('disc-modal-root');
   if (!root) return;
@@ -424,11 +445,13 @@ function showScheduleModal(card) {
   `;
 }
 
+// Close the schedule modal and remove it from the DOM.
 function closeScheduleModal() {
   const root = document.getElementById('disc-modal-root');
   if (root) root.innerHTML = '';
 }
 
+// Confirm scheduling a suggested stop into an available gap and add it to calendar.
 async function confirmAddToSchedule(cardId, gapIdx) {
   const card = DiscoverState.cards.find(c => c.id === cardId);
   if (!card) return;
@@ -483,6 +506,7 @@ async function confirmAddToSchedule(cardId, gapIdx) {
   showToast(`${card.name} added to your schedule!`);
 }
 
+// Confirm a manually chosen time for a suggested stop and add it to the schedule.
 async function confirmCustomAdd(cardId) {
   const card = DiscoverState.cards.find(c => c.id === cardId);
   if (!card) return;
@@ -544,6 +568,7 @@ async function confirmCustomAdd(cardId) {
   showToast(`${card.name} added at ${timeStr}!`);
 }
 
+// Refresh the card grid and filter UI after state changes.
 function refreshDiscoverCards() {
   const grid = document.getElementById('disc-grid');
   const filters = document.getElementById('disc-filters');
@@ -551,6 +576,7 @@ function refreshDiscoverCards() {
   if (filters) filters.innerHTML = buildFilterChips();
 }
 
+// Show a transient toast notification to the user.
 function showToast(msg) {
   const t = document.createElement('div');
   t.className = 'disc-toast';
@@ -561,6 +587,8 @@ function showToast(msg) {
 }
 
 // ── AI Refresh ───────────────────────────────────────────────────────────────
+// Calls the AI service to refresh the nearby suggestion cards using current calendar context.
+// Refresh the suggestion cards using the AI service and current calendar context.
 async function discoverRefresh() {
   const apiKey = Store.getApiKey();
   if (!apiKey) { showApiKeyPrompt(); return; }
@@ -569,7 +597,7 @@ async function discoverRefresh() {
   const banner = document.getElementById('disc-ai-banner');
   if (banner) banner.style.display = 'flex';
 
-  const events = Store.calendarEvents.filter(e => e.loc);
+  const events = getTodayEvents().filter(e => e.loc);
   const routes = Store.getFrequentRoutes().slice(0, 4);
   const locations = events.map(e => e.loc).join(', ');
 
@@ -639,6 +667,7 @@ Return only the JSON array.`;
 }
 
 // ── Custom search ────────────────────────────────────────────────────────────
+// Search for specific place recommendations via the AI assistant.
 async function discoverSearch() {
   const input = document.getElementById('disc-q');
   if (!input?.value.trim()) return;
@@ -648,5 +677,5 @@ async function discoverSearch() {
   const outEl = document.getElementById('disc-ai-out');
   if (outEl) { outEl.classList.add('visible'); outEl.innerHTML = '<div class="ai-loading"><div class="ai-spinner"></div>Searching…</div>'; }
 
-  await askAI('disc-ai-out', `User is in Seattle. Their calendar has events at: ${Store.calendarEvents.filter(e => e.loc).map(e => e.loc).join(', ')}. They're looking for: "${query}". Suggest 3 specific real places in Seattle that match, mentioning why each fits their current day. Keep it concise.`);
+  await askAI('disc-ai-out', `User is in Seattle. Their calendar today has events at: ${getTodayEvents().filter(e => e.loc).map(e => e.loc).join(', ')}. They're looking for: "${query}". Suggest 3 specific real places in Seattle that match, mentioning why each fits their current day. Keep it concise.`);
 }

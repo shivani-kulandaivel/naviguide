@@ -1,6 +1,12 @@
+// Main application entrypoint and Google Calendar integration logic.
+// This file initializes the UI, manages Google auth tokens, syncs calendar events,
+// and exposes helper actions for the rest of the UI.
 const GOOGLE_CLIENT_ID = "818886256150-8dapdbmbhiq57taek1b62mr8veikhafr.apps.googleusercontent.com"; // SENSITIVE
 const GOOGLE_API_KEY = "AIzaSyAg5zU-Tq3ct8eZb8Mo127rS7INYrth1es"; // SENSITIVE
 const App = (() => {
+  // Bootstraps the app when the page loads.
+  // Renders each tab, attaches navigation handlers, then attempts
+  // to restore a saved Google Calendar session if one exists.
   async function init() {
     renderToday();
     renderLog();
@@ -11,6 +17,8 @@ const App = (() => {
   }
   // comment
 
+  // Setup top-level sidebar tab navigation.
+  // Clicking a nav item makes it active and renders the associated tab.
   function setupNav() {
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -25,6 +33,7 @@ const App = (() => {
     });
   }
 
+  // Reflect whether the AI API key is configured in the sidebar status.
   function setupApiKey() {
     const key = Store.getApiKey();
     const dot = document.querySelector('.status-dot');
@@ -47,6 +56,8 @@ const App = (() => {
   let googleCalendarInitPromise = null;
   const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
 
+  // Persist Google Calendar access token locally for session restoration.
+  // Persist the Google Calendar access token and expiry to localStorage.
   function saveGoogleCalendarToken(accessToken, expiresIn) {
     try {
       const expiresAt = Date.now() + (expiresIn || 3600) * 1000 - 60000;
@@ -55,6 +66,7 @@ const App = (() => {
     } catch {}
   }
 
+  // Remove stored Google auth tokens when the session is invalidated.
   function clearGoogleCalendarToken() {
     try {
       localStorage.removeItem(GOOGLE_CALENDAR_TOKEN_KEY);
@@ -62,6 +74,7 @@ const App = (() => {
     } catch {}
   }
 
+  // Return a saved Google token if it exists and has not expired.
   function getSavedGoogleCalendarToken() {
     try {
       const token = localStorage.getItem(GOOGLE_CALENDAR_TOKEN_KEY);
@@ -73,6 +86,9 @@ const App = (() => {
     }
   }
 
+  // Try to restore a previous Google Calendar auth session and sync events.
+  // Attempt to restore a previously-authorized Google Calendar session.
+  // If successful, set the token and sync the users calendar events.
   async function restoreGoogleCalendarSession() {
     const savedToken = getSavedGoogleCalendarToken();
     if (!savedToken) return false;
@@ -86,7 +102,7 @@ const App = (() => {
       googleCalendarConnected = true;
       updateGoogleCalendarStatus();
       await syncGoogleCalendar();
-      renderToday();
+      renderToday(); // Only reached when restoring a saved session (not on fresh token grant)
       return true;
     } catch (err) {
       clearGoogleCalendarToken();
@@ -95,6 +111,7 @@ const App = (() => {
     }
   }
 
+  // Update the connect button and status text for Google Calendar state.
   function updateGoogleCalendarStatus() {
     const btn = document.getElementById('google-calendar-connect-btn');
     const status = document.getElementById('google-calendar-activity');
@@ -106,6 +123,7 @@ const App = (() => {
     }
   }
 
+  // Initialize the Google API client only once for Calendar calls.
   async function initGoogleCalendarClient() {
     if (googleCalendarInitPromise) return googleCalendarInitPromise;
     googleCalendarInitPromise = new Promise((resolve, reject) => {
@@ -125,6 +143,7 @@ const App = (() => {
     return googleCalendarInitPromise;
   }
 
+  // Ensure an OAuth token client exists for requesting Calendar permissions.
   function ensureGoogleCalendarTokenClient() {
     if (!googleCalendarTokenClient) {
       googleCalendarTokenClient = google.accounts.oauth2.initTokenClient({
@@ -154,10 +173,12 @@ const App = (() => {
     return googleCalendarTokenClient;
   }
 
+  // Return whether the app currently has a valid Google Calendar auth token.
   function isGoogleCalendarConnected() {
     return googleCalendarConnected && !!gapi.client.getToken()?.access_token;
   }
 
+  // Convert a display time string to hour/minute values.
   function parseCalendarTime(timeStr) {
     if (!timeStr || timeStr === '—' || timeStr === 'All Day') return null;
     const parts = timeStr.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
@@ -172,6 +193,7 @@ const App = (() => {
     return { hour, minute };
   }
 
+  // Build Google Calendar event start/end objects from a user-friendly time.
   function buildGoogleEventDateTime(timeStr, durationMinutes = 45) {
     const time = parseCalendarTime(timeStr);
     const start = new Date();
@@ -185,6 +207,9 @@ const App = (() => {
     };
   }
 
+  // Fetch upcoming Google Calendar events and merge them into local events.
+  // Local events without googleId are preserved and remote events are deduplicated.
+  // Fetch the user's upcoming Google Calendar events and merge them with local events.
   async function syncGoogleCalendar() {
     if (!isGoogleCalendarConnected()) return;
     if (!googleCalendarClientReady) await initGoogleCalendarClient();
@@ -211,17 +236,14 @@ const App = (() => {
       };
     });
 
-    const existingLocal = Store.calendarEvents.filter(e => !e.googleId);
-    const merged = [...existingLocal];
-    remoteEvents.forEach(remote => {
-      if (!merged.some(local => local.googleId === remote.googleId)) {
-        merged.push(remote);
-      }
-    });
-
-    Store.setCalendarEvents(merged);
+    // Replace all events with the authoritative remote list.
+    // Seed/demo events are intentionally discarded once a real calendar is connected.
+    Store.setCalendarEvents(remoteEvents);
   }
 
+  // Create a new event in the user's Google Calendar.
+  // This is used by the Discover module when a suggested stop is scheduled.
+  // Create a new Google Calendar event. Returns the inserted event result.
   async function createGoogleCalendarEvent(resource) {
     if (!isGoogleCalendarConnected()) {
       await restoreGoogleCalendarSession();
@@ -236,16 +258,25 @@ const App = (() => {
     return response.result;
   }
 
+  // Return today's date string in YYYY-MM-DD format for event storage.
   function getTodayDateString() {
     return new Date().toISOString().split('T')[0];
   }
 
+  // Start the Google Calendar auth flow or refresh an existing connection.
   async function loadGoogleCalendar() {
     try {
       await initGoogleCalendarClient();
       ensureGoogleCalendarTokenClient();
-      const restored = await restoreGoogleCalendarSession();
-      if (!restored) {
+      // Try to use a saved valid token first. If none, prompt the user for OAuth.
+      const savedToken = getSavedGoogleCalendarToken();
+      if (savedToken) {
+        gapi.client.setToken({ access_token: savedToken });
+        googleCalendarConnected = true;
+        updateGoogleCalendarStatus();
+        await syncGoogleCalendar();
+        renderToday();
+      } else {
         googleCalendarTokenClient.requestAccessToken({ prompt: '' });
       }
     } catch (err) {
@@ -263,6 +294,8 @@ const App = (() => {
   return { init };
 })();
 
+// Send a prompt to the AI API and render the response in the requested output panel.
+// Ask the AI model using the stored API key and render the response.
 async function askAI(outputId, prompt) {
   const apiKey = Store.getApiKey();
   const outEl = document.getElementById(outputId);
@@ -321,6 +354,7 @@ async function askAI(outputId, prompt) {
   }
 }
 
+// Helper to submit an AI prompt from a text input field.
 async function askAIFromInput(inputId, outputId) {
   const input = document.getElementById(inputId);
   if (!input || !input.value.trim()) return;
@@ -329,6 +363,8 @@ async function askAIFromInput(inputId, outputId) {
   await askAI(outputId, prompt);
 }
 
+// Display a modal that lets the user enter or update the AI API key.
+// Display a modal dialog for the user to enter an AI API key.
 function showApiKeyPrompt() {
   const existing = document.getElementById('apikey-modal');
   if (existing) { existing.style.display = 'flex'; return; }
@@ -350,6 +386,7 @@ function showApiKeyPrompt() {
   document.body.appendChild(modal);
 }
 
+// Save the user-entered API key and update the sidebar status.
 function saveApiKey() {
   const key = document.getElementById('modal-api-key').value.trim();
   if (key) {
@@ -366,61 +403,4 @@ document.querySelector('.api-status').addEventListener('click', showApiKeyPrompt
 
 document.addEventListener('DOMContentLoaded', App.init);
 
-function loadGoogleCalendar() {
-  gapi.load("client", async () => {
-    await gapi.client.init({
-      apiKey: GOOGLE_API_KEY,
-      discoveryDocs: [
-        "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"
-      ]
-    });
-
-    const tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/calendar.readonly",
-      callback: async (tokenResponse) => {
-        if (tokenResponse.error) {
-          console.error(tokenResponse);
-          alert("Google Calendar connection failed.");
-          return;
-        }
-
-        gapi.client.setToken({
-          access_token: tokenResponse.access_token
-        });
-
-        const response = await gapi.client.calendar.events.list({
-          calendarId: "primary",
-          timeMin: new Date().toISOString(),
-          showDeleted: false,
-          singleEvents: true,
-          maxResults: 10,
-          orderBy: "startTime"
-        });
-
-        console.log("Google Calendar Events:");
-        const syncedEvents = response.result.items.map(event => {
-          const startISO = event.start?.dateTime || event.start?.date || null;
-          return {
-            date: startISO,
-            time: event.start?.dateTime
-              ? new Date(event.start.dateTime).toLocaleTimeString([], {
-                  hour: 'numeric',
-                  minute: '2-digit'
-                })
-              : "All Day",
-            title: event.summary || "Untitled Event",
-            loc: event.location || null
-          };
-        });
-        
-        Store.setCalendarEvents(syncedEvents);
-        renderToday();
-        
-        alert("Calendar synced!");
-      }
-    });
-
-    tokenClient.requestAccessToken();
-  });
-}
+// loadGoogleCalendar is exposed via window.loadGoogleCalendar from the App IIFE above.

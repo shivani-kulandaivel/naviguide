@@ -491,7 +491,7 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: var(--r);
-  height: 150px;
+  height: 320px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -499,6 +499,9 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   position: relative;
   overflow: hidden;
 }
+
+/* Google Maps renders into direct children — ensure they fill the box */
+.map-box > div { width: 100% !important; height: 100% !important; }
 
 .map-hint { font-size: 11px; color: var(--text3); text-align: center; line-height: 1.6; }
 
