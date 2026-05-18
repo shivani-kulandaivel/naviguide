@@ -1,13 +1,13 @@
 // Main application entrypoint and Google Calendar integration logic.
 // This file initializes the UI, manages Google auth tokens, syncs calendar events,
 // and exposes helper actions for the rest of the UI.
-const GOOGLE_CLIENT_ID = "818886256150-8dapdbmbhiq57taek1b62mr8veikhafr.apps.googleusercontent.com"; // SENSITIVE
-const GOOGLE_API_KEY = "AIzaSyAg5zU-Tq3ct8eZb8Mo127rS7INYrth1es"; // SENSITIVE
+const GOOGLE_CLIENT_ID = "818886256150-8dapdbmbhiq57taek1b62mr8veikhafr.apps.googleusercontent.com";
 const App = (() => {
   // Bootstraps the app when the page loads.
   // Renders each tab, attaches navigation handlers, then attempts
   // to restore a saved Google Calendar session if one exists.
   async function init() {
+    await MapsService.getApiKey();
     renderToday();
     renderLog();
     renderDiscover();
@@ -34,8 +34,8 @@ const App = (() => {
   }
 
   // Reflect whether the AI API key is configured in the sidebar status.
-  function setupApiKey() {
-    const key = Store.getApiKey();
+  async function setupApiKey() {
+    const key = await getGeminiApiKey();
     const dot = document.querySelector('.status-dot');
     const txt = document.querySelector('.status-text');
     if (key) {
@@ -130,7 +130,7 @@ const App = (() => {
       gapi.load('client', async () => {
         try {
           await gapi.client.init({
-            apiKey: GOOGLE_API_KEY,
+            apiKey: await MapsService.getApiKey(),
             discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest']
           });
           googleCalendarClientReady = true;
@@ -214,25 +214,38 @@ const App = (() => {
     if (!isGoogleCalendarConnected()) return;
     if (!googleCalendarClientReady) await initGoogleCalendarClient();
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endWindow = new Date(startOfToday);
+    endWindow.setDate(endWindow.getDate() + 7);
+
     const response = await gapi.client.calendar.events.list({
       calendarId: 'primary',
-      timeMin: new Date().toISOString(),
+      timeMin: startOfToday.toISOString(),
+      timeMax: endWindow.toISOString(),
       showDeleted: false,
       singleEvents: true,
-      maxResults: 20,
+      maxResults: 50,
       orderBy: 'startTime'
     });
 
     const remoteEvents = response.result.items.map(event => {
       const startISO = event.start?.dateTime || event.start?.date || null;
+      const endISO = event.end?.dateTime || event.end?.date || null;
+      const durationMinutes = startISO && endISO && event.start?.dateTime && event.end?.dateTime
+        ? Math.max(15, Math.round((new Date(endISO) - new Date(startISO)) / 60000))
+        : null;
       return {
         googleId: event.id,
         date: startISO,
+        end: endISO,
+        durationMinutes,
         time: event.start?.dateTime
           ? new Date(event.start.dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
           : 'All Day',
         title: event.summary || 'Untitled Event',
-        loc: event.location || null
+        loc: event.location || null,
+        location: event.location || null
       };
     });
 
@@ -260,7 +273,8 @@ const App = (() => {
 
   // Return today's date string in YYYY-MM-DD format for event storage.
   function getTodayDateString() {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   }
 
   // Start the Google Calendar auth flow or refresh an existing connection.
@@ -294,16 +308,68 @@ const App = (() => {
   return { init };
 })();
 
-// Send a prompt to the AI API and render the response in the requested output panel.
-// Ask the AI model using the stored API key and render the response.
+const GEMINI_MODEL = 'gemini-2.0-flash';
+let geminiApiKeyPromise = null;
+
+async function getGeminiApiKey() {
+  if (geminiApiKeyPromise) return geminiApiKeyPromise;
+  geminiApiKeyPromise = (async () => {
+    const configKey = window.NAVIGUIDE_ENV?.GEMINI_API_KEY || window.NAVIGUIDE_ENV?.GOOGLE_MAPS_API_KEY;
+    if (configKey) {
+      Store.setApiKey(configKey);
+      return configKey;
+    }
+
+    try {
+      const res = await fetch('.env', { cache: 'no-store' });
+      if (!res.ok) throw new Error('No local env file');
+      const text = await res.text();
+      const geminiKey = text.match(/^GEMINI_API_KEY=(.+)$/m)?.[1]?.trim();
+      const mapsKey = text.match(/^GOOGLE_MAPS_API_KEY=(.+)$/m)?.[1]?.trim();
+      const key = geminiKey || mapsKey || '';
+      if (key) Store.setApiKey(key);
+      return key;
+    } catch {
+      return Store.getApiKey();
+    }
+  })();
+  return geminiApiKeyPromise;
+}
+
+// Ask Gemini Flash using the stored AI API key.
+async function askGeminiFlash(prompt, systemPrompt, maxOutputTokens = 400) {
+  const apiKey = await getGeminiApiKey();
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        maxOutputTokens,
+        temperature: 0.7
+      }
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error?.message || 'Gemini request failed');
+
+  return data.candidates?.[0]?.content?.parts
+    ?.map(part => part.text || '')
+    .join('\n')
+    .trim() || 'No response.';
+}
+
+// Send a prompt to Gemini Flash and render the response in the requested output panel.
 async function askAI(outputId, prompt) {
-  const apiKey = Store.getApiKey();
+  const apiKey = await getGeminiApiKey();
   const outEl = document.getElementById(outputId);
   if (!outEl) return;
 
   if (!apiKey) {
     outEl.classList.add('visible');
-    outEl.innerHTML = `<strong>Add your Claude API key</strong> to enable AI suggestions. Click the status indicator in the sidebar, or open <code>config.html</code>.`;
+    outEl.innerHTML = `<strong>Add your Gemini API key</strong> to enable AI suggestions. Click the status indicator in the sidebar.`;
     showApiKeyPrompt();
     return;
   }
@@ -319,30 +385,10 @@ async function askAI(outputId, prompt) {
   const routes = Store.getFrequentRoutes().slice(0, 4);
   const stats = Store.getStats();
 
-  const systemPrompt = `You are Wayfarer, a smart travel habit assistant. The user has these travel patterns: ${stats.count} trips logged, avg commute ${stats.avgDur} min, top routes: ${routes.map(r=>`${r.from}→${r.to} (${r.count}x, avg ${r.avgDur}min)`).join(', ')}. Today's calendar: Lunch in Capitol Hill at 12pm, Dentist at 3pm, Gym at 6pm. Be helpful, specific, and concise. Use plain text, no markdown formatting.`;
+  const systemPrompt = `You are NaviGuide, a smart travel habit assistant. The user has these travel patterns: ${stats.count} trips logged, avg commute ${stats.avgDur} min, top routes: ${routes.map(r=>`${r.from}→${r.to} (${r.count}x, avg ${r.avgDur}min)`).join(', ')}. Today's calendar: Lunch in Capitol Hill at 12pm, Dentist at 3pm, Gym at 6pm. Be helpful, specific, and concise. Use plain text, no markdown formatting.`;
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 400,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const data = await res.json();
-
-    if (data.error) throw new Error(data.error.message);
-
-    const text = data.content?.[0]?.text || 'No response.';
+    const text = await askGeminiFlash(prompt, systemPrompt, 400);
     outEl.innerHTML = text.replace(/\n/g, '<br>');
 
     dot.className = 'status-dot';
@@ -374,10 +420,10 @@ function showApiKeyPrompt() {
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:999';
   modal.innerHTML = `
     <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:24px;width:380px;font-family:var(--font-mono)">
-      <div style="font-family:var(--font-head);font-size:16px;font-weight:600;margin-bottom:8px">Add your Claude API key</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">Get your key from <strong style="color:var(--accent)">console.anthropic.com</strong>. It's stored locally in your browser only.</div>
+      <div style="font-family:var(--font-head);font-size:16px;font-weight:600;margin-bottom:8px">Add your Gemini API key</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6">Get a free key from <strong style="color:var(--accent)">aistudio.google.com/app/apikey</strong>. It's stored locally in your browser only.</div>
       <div class="key-input-row">
-        <input type="password" id="modal-api-key" placeholder="sk-ant-..." value="${Store.getApiKey()}" />
+        <input type="password" id="modal-api-key" placeholder="AIza..." value="${Store.getApiKey()}" />
         <button class="btn-primary" onclick="saveApiKey()">Save</button>
       </div>
       <button class="btn-secondary" style="width:100%;margin-top:8px" onclick="document.getElementById('apikey-modal').style.display='none'">Cancel</button>

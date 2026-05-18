@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">NaviGuide logo</title>
+  <desc id="desc">A purple compass arrow inside a rounded square.</desc>
+  <defs>
+    <linearGradient id="badge" x1="10" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b794f6"/>
+      <stop offset="0.52" stop-color="#6d4cb1"/>
+      <stop offset="1" stop-color="#39275b"/>
+    </linearGradient>
+    <linearGradient id="needle" x1="24" y1="18" x2="40" y2="46" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ddd6fe"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#271445" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#f3e8ff"/>
+  <circle cx="32" cy="32" r="24" fill="url(#badge)" filter="url(#shadow)"/>
+  <circle cx="32" cy="32" r="15.5" fill="none" stroke="#ffffff" stroke-opacity="0.68" stroke-width="2"/>
+  <path d="M43.5 14.5 36.2 36.2 14.5 43.5 27.8 27.8 43.5 14.5Z" fill="url(#needle)"/>
+  <path d="M27.8 27.8 36.2 36.2 14.5 43.5 27.8 27.8Z" fill="#c4b5fd"/>
+  <circle cx="32" cy="32" r="2.3" fill="#39275b"/>
+</svg>

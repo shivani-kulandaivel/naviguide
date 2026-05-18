@@ -1,19 +1,24 @@
 <!DOCTYPE html>
-<!-- Wayfarer app shell: loads UI tabs, local data storage, and Google Calendar integration. -->
+<!-- NaviGuide app shell: loads UI tabs, local data storage, and Google Calendar integration. -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wayfarer</title>
+  <title>NaviGuide</title>
+  <link rel="icon" type="image/svg+xml" href="src/assets/naviguide-logo.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="src/styles/main.css" />
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
   <div id="app">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">W</div>
+        <img class="brand-mark" src="src/assets/naviguide-logo.svg" alt="NaviGuide logo" />
         <span class="brand-name">NaviGuide</span>
       </div>
     <nav class="nav">
@@ -46,7 +51,9 @@
     </main>
   </div>
 
+  <script src="src/config.local.js"></script>
   <script src="src/data/store.js"></script>
+  <script src="src/services/maps.js"></script>
   <script src="src/components/today.js"></script>
   <script src="src/components/log.js"></script>
   <script src="src/components/discover.js"></script>

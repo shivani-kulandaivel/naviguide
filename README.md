@@ -1,6 +1,6 @@
 # Naviguide — Travel Habit Tracker
 
-A local web app that tracks your travel habits, reads your calendar, and uses Claude AI to suggest optimized routes and nearby places.
+A local web app that tracks your travel habits, reads your calendar, and uses Gemini Flash to suggest optimized routes and nearby places.
 
 ## Setup (2 minutes)
 ## made changes
@@ -27,13 +27,13 @@ npx serve .
 
 ---
 
-## Add your Claude API key (for AI features)
+## Add your Gemini API key (for AI features)
 
-1. Go to [console.anthropic.com](https://console.anthropic.com) and create an API key
+1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey) and create an API key
 2. Click the status indicator in the bottom-left of the app
 3. Paste your key and click Save
 
-Your key is stored in your browser's localStorage — never sent anywhere except Anthropic's API.
+Your key is stored in your browser's localStorage — never sent anywhere except Google's Gemini API.
 
 ---
 
@@ -57,12 +57,13 @@ GET https://www.googleapis.com/calendar/v3/calendars/primary/events
 Authorization: Bearer YOUR_OAUTH_TOKEN
 ```
 
-### Google Maps routing
-Add real travel time estimates by calling:
-```
-GET https://maps.googleapis.com/maps/api/directions/json
-?origin=Home&destination=Capitol+Hill,Seattle&key=YOUR_KEY
-```
+### Mapping stack (no API key needed)
+- **Map tiles:** [CARTO Light](https://carto.com/attribution) via Leaflet
+- **Geocoding:** [Nominatim](https://nominatim.org/) — `https://nominatim.openstreetmap.org/search`
+- **Routing / travel time:** [OSRM public demo](https://project-osrm.org/) — `https://router.project-osrm.org/route/v1`
+- **Nearby places (Discover):** [Overpass API](https://overpass-api.de/) — `https://overpass-api.de/api/interpreter`
+
+All free and CORS-friendly. Please respect their usage policies (no high-volume traffic).
 
 ### Location auto-detection
 Use the browser Geolocation API to log trips automatically:
@@ -80,7 +81,7 @@ navigator.geolocation.watchPosition(pos => {
 wayfarer/
 ├── index.html              # Entry point
 ├── src/
-│   ├── app.js              # Nav, Claude API calls, key management
+│   ├── app.js              # Nav, Gemini API calls, key management
 │   ├── data/
 │   │   └── store.js        # Trip data, stats, seed calendar events
 │   ├── components/

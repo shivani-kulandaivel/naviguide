@@ -268,7 +268,7 @@ async function tryCreateGoogleEventWithAuth(resource, timeout = 15000) {
 // ── Context strip ────────────────────────────────────────────────────────────
 // Build the context strip that shows today's calendar locations for the Discover tab.
 function buildContextStrip() {
-  const events = getTodayEvents().filter(e => e.loc);
+  const events = getTodayEvents().filter(e => getDiscoverEventLocation(e));
   if (!events.length) return '';
   return `
     <div class="disc-context-label">Today's locations</div>
@@ -276,7 +276,7 @@ function buildContextStrip() {
       ${events.map(e => `
         <div class="disc-context-pill">
           <span class="disc-context-time">${e.time}</span>
-          <span>${e.loc}</span>
+          <span>${getDiscoverEventLocation(e)}</span>
         </div>
       `).join('')}
     </div>
@@ -456,7 +456,7 @@ async function confirmAddToSchedule(cardId, gapIdx) {
   const card = DiscoverState.cards.find(c => c.id === cardId);
   if (!card) return;
   const gap = DiscoverState.scheduleGaps?.[gapIdx];
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateString();
   const startTime = gap ? minutesToTimeString(gap.startMin) : '10:00 AM';
   card.addedTo = `Scheduled at ${startTime}`;
 
@@ -520,7 +520,7 @@ async function confirmCustomAdd(cardId) {
   const timeStr = `${h12}:${String(mm).padStart(2,'0')} ${ampm}`;
 
   const newEvent = {
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateString(),
     time: timeStr,
     title: `Stop: ${card.name}`,
     loc: card.address,
@@ -586,85 +586,8 @@ function showToast(msg) {
   setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 400); }, 2800);
 }
 
-// ── AI Refresh ───────────────────────────────────────────────────────────────
-// Calls the AI service to refresh the nearby suggestion cards using current calendar context.
-// Refresh the suggestion cards using the AI service and current calendar context.
-async function discoverRefresh() {
-  const apiKey = Store.getApiKey();
-  if (!apiKey) { showApiKeyPrompt(); return; }
-
-  DiscoverState.loading = true;
-  const banner = document.getElementById('disc-ai-banner');
-  if (banner) banner.style.display = 'flex';
-
-  const events = getTodayEvents().filter(e => e.loc);
-  const routes = Store.getFrequentRoutes().slice(0, 4);
-  const locations = events.map(e => e.loc).join(', ');
-
-  const prompt = `The user is in Seattle. Their calendar today has events at: ${locations}. Their frequent routes are: ${routes.map(r => `${r.from}→${r.to}`).join(', ')}.
-
-Suggest 6 real, specific places in Seattle they should visit — a mix of cafés, restaurants, bookstores, parks, or cute shops that are actually near these locations. For each, respond ONLY with valid JSON array, no markdown. Format:
-[
-  {
-    "name": "Place Name",
-    "type": "café|restaurant|park|bookstore|bar|shop|bakery|gallery",
-    "address": "Full address, Seattle",
-    "why": "One short sentence why it fits their day (location + time context)",
-    "vicinity": "Neighborhood name"
-  }
-]
-Return only the JSON array.`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-
-    // Extract text from content blocks
-    const textBlock = data.content?.find(b => b.type === 'text');
-    const raw = textBlock?.text || '';
-
-    // Parse JSON (strip any accidental fences)
-    const clean = raw.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-
-    if (Array.isArray(parsed) && parsed.length) {
-      DiscoverState.cards = parsed.map((p, i) => ({
-        id: `ai-${Date.now()}-${i}`,
-        name: p.name,
-        type: p.type || 'shop',
-        address: p.address,
-        why: p.why,
-        vicinity: p.vicinity || '',
-        addedTo: null,
-      }));
-      DiscoverState.activeFilter = 'all';
-    }
-  } catch (err) {
-    console.error('Discover AI error:', err);
-    // Keep existing cards on error, just show notification
-    showToast('AI search failed — showing cached suggestions');
-  }
-
-  DiscoverState.loading = false;
-  if (banner) banner.style.display = 'none';
-  refreshDiscoverCards();
-}
+// ── Places Refresh ────────────────────────────────────────────────────────────
+// The current Discover refresh implementation lives below and uses Google Places.
 
 // ── Custom search ────────────────────────────────────────────────────────────
 // Search for specific place recommendations via the AI assistant.
@@ -677,5 +600,260 @@ async function discoverSearch() {
   const outEl = document.getElementById('disc-ai-out');
   if (outEl) { outEl.classList.add('visible'); outEl.innerHTML = '<div class="ai-loading"><div class="ai-spinner"></div>Searching…</div>'; }
 
-  await askAI('disc-ai-out', `User is in Seattle. Their calendar today has events at: ${getTodayEvents().filter(e => e.loc).map(e => e.loc).join(', ')}. They're looking for: "${query}". Suggest 3 specific real places in Seattle that match, mentioning why each fits their current day. Keep it concise.`);
+  await askAI('disc-ai-out', `User is in Seattle. Their calendar today has events at: ${getTodayEvents().map(getDiscoverEventLocation).filter(Boolean).join(', ')}. They're looking for: "${query}". Suggest 3 specific real places in Seattle that match, mentioning why each fits their current day. Keep it concise.`);
+}
+
+// ── OSM Places Discover experience ───────────────────────────────────────────
+// `osmFilters` is a list of OSM tag selectors that Overpass uses.
+const DISCOVER_GOOGLE_TYPES = [
+  { id: 'snacks', label: 'Snacks', osmFilters: ['shop=bakery', 'shop=pastry', 'amenity=fast_food'] },
+  { id: 'dining', label: 'Dining', osmFilters: ['amenity=restaurant'] },
+  { id: 'drinks', label: 'Drinks', osmFilters: ['amenity=bar', 'amenity=pub'] },
+  { id: 'ice-cream', label: 'Ice cream', osmFilters: ['amenity=ice_cream', 'shop=ice_cream'] },
+  { id: 'thrift', label: 'Thrift stores', osmFilters: ['shop=second_hand', 'shop=charity'] },
+  { id: 'bookstores', label: 'Bookstores', osmFilters: ['shop=books'] },
+  { id: 'cafes', label: 'Cafes / coffee', osmFilters: ['amenity=cafe'] },
+  { id: 'museums', label: 'Museums', osmFilters: ['tourism=museum', 'tourism=gallery'] },
+  { id: 'sightseeing', label: 'Sightseeing', osmFilters: ['tourism=attraction', 'tourism=viewpoint'] }
+];
+
+Object.assign(TYPE_COLOR, {
+  snacks: '#F2C14E',
+  dining: '#57C7A3',
+  drinks: '#B66DFF',
+  'ice-cream': '#F7A8C8',
+  thrift: '#E0A458',
+  bookstores: '#7B61FF',
+  cafes: '#8ED6C9',
+  museums: '#4EA5D9',
+  sightseeing: '#E85D75'
+});
+
+function getTodayEvents() {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  return Store.calendarEvents
+    .filter(e => {
+      const date = e.date ? e.date.split('T')[0] : today;
+      return date === today && e.time && e.time !== '—' && e.time !== 'All Day';
+    });
+}
+
+function getDiscoverEventLocation(event) {
+  const location = event?.loc || event?.location || event?.place || '';
+  return typeof location === 'string' ? location.trim() : '';
+}
+
+function getLocalDateString() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+}
+
+function ensureDiscoverDefaults() {
+  if (!DiscoverState.radiusMiles) DiscoverState.radiusMiles = 1;
+  if (!DiscoverState.placeType) DiscoverState.placeType = 'cafes';
+}
+
+function renderDiscover() {
+  ensureDiscoverDefaults();
+  const pane = document.getElementById('tab-discover');
+  if (!pane) return;
+  if (DiscoverState.cards.length === 0) DiscoverState.cards = SEED_CARDS.map(c => ({ ...c }));
+
+  pane.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Discover</div>
+        <div class="page-sub">Places nearby with round-trip timing</div>
+      </div>
+      <button class="btn-primary disc-refresh-btn" onclick="discoverRefresh()">Find places</button>
+    </div>
+
+    <div class="disc-control-panel">
+      <div class="field">
+        <label>Mile radius</label>
+        <select id="disc-radius" onchange="discoverSetRadius(this.value)">
+          ${[0.5, 1, 2, 3, 5].map(v => `<option value="${v}" ${Number(DiscoverState.radiusMiles) === v ? 'selected' : ''}>${v} mi</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>Place type</label>
+        <select id="disc-place-type" onchange="discoverSetPlaceType(this.value)">
+          ${DISCOVER_GOOGLE_TYPES.map(t => `<option value="${t.id}" ${DiscoverState.placeType === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="disc-control-copy">
+        Searching around <strong>${getDiscoveryAnchor()}</strong>. Each card picks walk vs transit, with driving as the fallback.
+      </div>
+    </div>
+
+    <div class="disc-context-strip" id="disc-context-strip">
+      ${buildContextStrip()}
+    </div>
+
+    <div class="disc-ai-banner" id="disc-ai-banner" style="display:none">
+      <div class="disc-ai-spinner"></div>
+      <span>Looking up nearby places and travel times…</span>
+    </div>
+
+    <div class="disc-grid" id="disc-grid">
+      ${buildCardGrid()}
+    </div>
+
+    <div class="card" style="margin-top:6px">
+      <div class="card-label">Find something specific</div>
+      <div class="form-grid" style="grid-template-columns:1fr auto">
+        <input type="text" id="disc-q" placeholder="e.g. quiet dessert spots near my next stop" />
+        <button class="btn-primary" onclick="discoverSearch()">Search</button>
+      </div>
+      <div class="ai-response" id="disc-ai-out"></div>
+    </div>
+
+    <div id="disc-modal-root"></div>
+  `;
+}
+
+function discoverSetRadius(value) {
+  DiscoverState.radiusMiles = Number(value);
+}
+
+function discoverSetPlaceType(value) {
+  DiscoverState.placeType = value;
+}
+
+function getDiscoveryAnchor() {
+  const locEvent = getTodayEvents().find(e => getDiscoverEventLocation(e));
+  return getDiscoverEventLocation(locEvent) || 'Seattle, WA';
+}
+
+function buildCardGrid() {
+  const cards = DiscoverState.activeFilter === 'all'
+    ? DiscoverState.cards
+    : DiscoverState.cards.filter(c => c.type === DiscoverState.activeFilter);
+  if (!cards.length) return '<div class="empty" style="grid-column:1/-1;padding:40px 0">No spots yet. Pick a radius and type, then find places.</div>';
+  return cards.map(c => buildCard(c)).join('');
+}
+
+function buildCard(c) {
+  const typeDef = DISCOVER_GOOGLE_TYPES.find(t => t.id === c.type);
+  const label = c.typeLabel || typeDef?.label || c.type || 'Place';
+  const color = TYPE_COLOR[c.type] || TYPE_COLOR[c.typeLabel] || TYPE_COLOR.default;
+  const modeText = c.mode ? `${c.mode} there` : 'route pending';
+  const spendText = c.visitMinutes ? `${c.visitMinutes} min there` : `${getEstimatedVisitDuration(c.type)} min there`;
+  const totalText = c.totalMinutes ? `${c.totalMinutes} min total` : 'timing pending';
+  const rating = c.rating ? `${c.rating.toFixed(1)} ★${c.userRatingsTotal ? ` (${c.userRatingsTotal})` : ''}` : 'Google place';
+
+  return `
+    <div class="disc-card" id="card-${c.id}">
+      <div class="disc-card-img" style="background:linear-gradient(135deg, ${color}20, #ffffff 70%)">
+        <div class="disc-rec-ribbon">Recommended</div>
+        <div class="disc-map-art" style="--card-color:${color}">
+          <div class="disc-map-grid"></div>
+          <div class="disc-map-marker">
+            <div class="disc-map-marker-dot" style="background:${color}"></div>
+            <div class="disc-map-marker-ring" style="border-color:${color}40"></div>
+          </div>
+          <div class="disc-map-label">${c.vicinity || c.address}</div>
+        </div>
+        <div class="disc-card-type-badge" style="background:${color}22;color:${color};border-color:${color}33">${label}</div>
+        ${c.addedTo ? `<div class="disc-card-added-badge">Added</div>` : ''}
+      </div>
+
+      <div class="disc-card-body">
+        <div class="disc-card-name">${c.name}</div>
+        <div class="disc-card-address">${c.address}</div>
+        <div class="disc-card-why" style="color:${color}">${c.why || `${rating} within ${DiscoverState.radiusMiles} mi of your day.`}</div>
+        <div class="disc-time-stack">
+          <span>${modeText}</span>
+          <span>${c.oneWayMinutes ? `${c.oneWayMinutes} min each way` : 'calculating travel'}</span>
+          <span>${spendText}</span>
+          <strong>${totalText}</strong>
+        </div>
+
+        <div class="disc-card-actions">
+          <button class="disc-card-btn-primary" onclick="discoverAddToSchedule('${c.id}')">
+            ${c.addedTo ? 'Scheduled' : '+ Add'}
+          </button>
+          <button class="disc-card-btn-secondary" onclick="discoverOpenMaps('${c.id}')">Maps</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function discoverRefresh() {
+  ensureDiscoverDefaults();
+  const banner = document.getElementById('disc-ai-banner');
+  if (banner) banner.style.display = 'flex';
+
+  try {
+    const placeType = DISCOVER_GOOGLE_TYPES.find(t => t.id === DiscoverState.placeType) || DISCOVER_GOOGLE_TYPES[0];
+    const anchor = getDiscoveryAnchor();
+    const places = await MapsService.searchPlaces({
+      centerAddress: anchor,
+      radiusMiles: Number(DiscoverState.radiusMiles),
+      placeType
+    });
+
+    const enriched = await Promise.all(places.map(async (place, i) => {
+      const coord = place.location || { lat: place.lat, lng: place.lng };
+      const travel = await MapsService.chooseRoundTrip(anchor, coord);
+      const visitMinutes = getEstimatedVisitDuration(placeType.id);
+      return {
+        ...place,
+        id: place.placeId || `place-${Date.now()}-${i}`,
+        type: placeType.id,
+        typeLabel: placeType.label,
+        visitMinutes,
+        oneWayMinutes: travel?.oneWayMinutes || null,
+        roundTripMinutes: travel?.roundTripMinutes || null,
+        totalMinutes: travel ? travel.roundTripMinutes + visitMinutes : null,
+        mode: travel?.mode || 'drive',
+        miles: travel?.miles || null,
+        lat: place.lat ?? coord.lat,
+        lng: place.lng ?? coord.lng,
+        why: `${placeType.label} within ${DiscoverState.radiusMiles} mi. Best option: ${travel?.mode || 'drive'}${travel ? `, ${travel.oneWayMinutes} min each way` : ''}.`
+      };
+    }));
+
+    DiscoverState.cards = enriched.sort((a, b) => (a.totalMinutes || 9999) - (b.totalMinutes || 9999));
+    DiscoverState.activeFilter = 'all';
+    Store.setRecommendedPlaces(DiscoverState.cards);
+    refreshDiscoverCards();
+    if (document.getElementById('tab-today')?.classList.contains('active')) renderToday();
+  } catch (err) {
+    console.error('Discover Places error:', err);
+    showToast(`Place search failed: ${err.message || 'try a different type or radius'}`);
+  } finally {
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+async function discoverSearch() {
+  const input = document.getElementById('disc-q');
+  if (!input?.value.trim()) return;
+  const query = input.value.trim().toLowerCase();
+  input.value = '';
+  const custom = DISCOVER_GOOGLE_TYPES.find(t => query.includes(t.label.toLowerCase().split(' ')[0]));
+  if (custom) DiscoverState.placeType = custom.id;
+  await discoverRefresh();
+}
+
+function getEstimatedVisitDuration(type) {
+  const durations = {
+    snacks: 25,
+    dining: 75,
+    drinks: 55,
+    'ice-cream': 25,
+    thrift: 45,
+    bookstores: 40,
+    cafes: 45,
+    museums: 90,
+    sightseeing: 50,
+    restaurant: 75,
+    café: 45,
+    bookstore: 40,
+    park: 50
+  };
+  return durations[type] || 45;
 }

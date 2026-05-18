@@ -52,17 +52,11 @@ body {
 }
 
 .brand-mark {
-  width: 28px;
-  height: 28px;
-  background: var(--accent);
-  color: var(--bg);
-  font-family: var(--font-head);
-  font-weight: 700;
-  font-size: 15px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: block;
+  box-shadow: 0 8px 18px rgba(57,39,91,0.22);
 }
 
 .brand-name {
@@ -486,12 +480,40 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
 .disc-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
 .disc-why { font-size: 11px; margin-top: 3px; }
 
-/* ── Map placeholder ── */
+/* ── Route map ── */
+.map-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.map-title {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: -6px;
+}
+
+.map-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text2);
+  font-size: 10px;
+}
+
+.map-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.legend-dot.visited { background: #7B61FF; }
+.legend-dot.recommended { background: #E85D75; }
+
 .map-box {
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: var(--r);
-  height: 320px;
+  height: 540px;
+  min-height: 60vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -501,9 +523,267 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
 }
 
 /* Google Maps renders into direct children — ensure they fill the box */
-.map-box > div { width: 100% !important; height: 100% !important; }
+/* When Leaflet attaches it adds .leaflet-container; ditch the empty-state flex */
+.map-box.leaflet-container {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
 
 .map-hint { font-size: 11px; color: var(--text3); text-align: center; line-height: 1.6; }
+
+.map-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text3);
+  font-size: 12px;
+  height: 100%;
+}
+
+.map-dot-overlay {
+  background: transparent !important;
+  border: 0 !important;
+  width: 200px !important;
+  height: 200px !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  pointer-events: none !important;
+  white-space: nowrap;
+}
+/* Only the visible dot + labels capture clicks; the transparent tile is inert. */
+.map-dot-overlay > * {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Lift Leaflet zoom controls above the dot tiles. */
+.map-box .leaflet-top,
+.map-box .leaflet-bottom { z-index: 5; }
+.map-box .leaflet-marker-icon { z-index: 4; }
+
+/* Slightly punchier Leaflet zoom buttons. */
+.map-box .leaflet-control-zoom a {
+  width: 32px;
+  height: 32px;
+  line-height: 30px;
+  font-size: 18px;
+  color: var(--accent);
+  border-color: rgba(57,39,91,0.18);
+  background: #ffffffeb;
+}
+.map-box .leaflet-control-zoom a:hover {
+  background: #fff;
+  color: #E85D75;
+}
+
+/* "Refresh recs" pill button in the map legend. */
+.map-rec-refresh {
+  margin-left: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(232,93,117,0.4);
+  background: #fff;
+  color: #E85D75;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.map-rec-refresh:hover:not(:disabled) {
+  background: #E85D75;
+  color: #fff;
+}
+.map-rec-refresh:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ── Map detail popup ── */
+.map-popup-wrap .leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  padding: 0;
+  box-shadow: 0 12px 40px rgba(57,39,91,0.18);
+  border: 1px solid rgba(57,39,91,0.08);
+}
+.map-popup-wrap .leaflet-popup-content {
+  margin: 0;
+  padding: 14px 16px 12px;
+  font-family: var(--font-sans, system-ui);
+  line-height: 1.45;
+}
+.map-popup-wrap .leaflet-popup-tip { box-shadow: 0 12px 40px rgba(57,39,91,0.18); }
+.map-popup {
+  font-size: 13px;
+  color: var(--text1, #2b1f3d);
+}
+.map-popup-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  margin-bottom: 6px;
+}
+.map-popup-tag.is-rec {
+  background: #E85D75;
+  color: #fff;
+  border-color: #E85D75;
+}
+.map-popup-name {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  color: var(--accent, #39275B);
+}
+.map-popup-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text2, #6b6472);
+  margin-bottom: 4px;
+}
+.map-popup-loc {
+  font-size: 12px;
+  color: var(--text2, #6b6472);
+  margin-bottom: 8px;
+}
+.map-popup-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-bottom: 8px;
+}
+.map-popup-stat {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(57,39,91,0.06);
+  color: var(--text2, #6b6472);
+}
+.map-popup-stat.strong {
+  background: rgba(232,93,117,0.12);
+  color: #c9445b;
+  font-weight: 700;
+}
+.map-popup-why {
+  font-size: 11px;
+  color: var(--text2, #6b6472);
+  font-style: italic;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.map-popup-actions {
+  display: flex;
+  gap: 6px;
+}
+.map-popup-btn {
+  flex: 1;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: var(--accent, #39275B);
+  color: #fff;
+  border: 1px solid var(--accent, #39275B);
+  transition: opacity 0.15s ease;
+}
+.map-popup-btn:hover { opacity: 0.88; }
+.map-popup-btn.ghost {
+  background: #fff;
+  color: var(--accent, #39275B);
+}
+
+/* Pill that shows how many recommended places are on the map. */
+.legend-count {
+  display: inline-block;
+  min-width: 16px;
+  padding: 0 5px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #E85D75;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+/* Per-category legend chip (colored swatch + label + count). */
+.legend-cat {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  background: rgba(57,39,91,0.04);
+  border: 1px solid rgba(57,39,91,0.08);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.legend-empty {
+  color: var(--text3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.map-dot {
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.95);
+}
+
+.map-dot-label,
+.map-dot-meta,
+.map-rec-label {
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(57,39,91,0.12);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 9px;
+  padding: 3px 7px;
+  box-shadow: 0 4px 14px rgba(57,39,91,0.1);
+}
+
+.map-dot-meta {
+  color: var(--text2);
+  opacity: 0.78;
+}
+
+.map-rec-label {
+  background: #E85D75;
+  border-color: #E85D75;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.map-dot-overlay.is-recommended .map-dot-label {
+  font-weight: 700;
+}
 
 /* ── Empty state ── */
 .empty { font-size: 12px; color: var(--text3); text-align: center; padding: 24px 0; }
@@ -561,6 +841,28 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   font-size: 11px;
   color: var(--text2);
 }
+
+/* ── Discover: Controls ─────────────────────────────────────────────────── */
+.disc-control-panel {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.4fr) minmax(190px, 0.7fr) 1fr;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.disc-control-copy {
+  color: var(--text2);
+  font-size: 11px;
+  line-height: 1.5;
+  padding-bottom: 8px;
+}
+
+.disc-control-copy strong { color: var(--accent); }
 
 .disc-context-time {
   color: var(--accent);
@@ -757,6 +1059,22 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   border: 1px solid rgba(57,39,91,0.2);
 }
 
+.disc-rec-ribbon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  background: #E85D75;
+  color: #fff;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 /* ── Card body ──────────────────────────────────────────────────────────── */
 .disc-card-body {
   padding: 13px 14px;
@@ -787,6 +1105,33 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   line-height: 1.5;
   margin-top: 2px;
   flex: 1;
+}
+
+.disc-time-stack {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.disc-time-stack span,
+.disc-time-stack strong {
+  background: rgba(255,255,255,0.36);
+  border: 1px solid rgba(57,39,91,0.08);
+  border-radius: 8px;
+  color: var(--text2);
+  font-size: 10px;
+  padding: 6px 7px;
+}
+
+.disc-time-stack strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .disc-control-panel { grid-template-columns: 1fr; }
+  .disc-control-copy { padding-bottom: 0; }
 }
 
 /* ── Card action buttons ────────────────────────────────────────────────── */

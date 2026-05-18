@@ -3,6 +3,7 @@
 const Store = (() => {
   const STORAGE_KEY = 'wayfarer_trips';
   const CALENDAR_EVENTS_KEY = 'wayfarer_calendar_events';
+  const DISCOVER_RECOMMENDED_KEY = 'wayfarer_discover_recommended_places';
   const API_KEY_KEY = 'wayfarer_api_key';
   const GOOGLE_API_KEY_KEY = 'wayfarer_google_api_key';
   const GOOGLE_CLIENT_ID_KEY = 'wayfarer_google_client_id';
@@ -73,24 +74,33 @@ const Store = (() => {
 
   let trips = load();
 
-  // Load calendar events from localStorage, falling back to sample events.
+  function todayIsoLocal() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  }
+
+  function seedCalendarEvents() {
+    const date = todayIsoLocal();
+    return [
+      { date, time: '9:00 AM', title: 'Team standup', loc: null },
+      { date, time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
+      { date, time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
+      { date, time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' }
+    ];
+  }
+
   // Load calendar events from localStorage or provide example events if none exist.
+  // Any stored event missing a date gets stamped with today so it still appears.
   function loadCalendarEvents() {
     try {
       const raw = localStorage.getItem(CALENDAR_EVENTS_KEY);
-      return raw ? JSON.parse(raw) : [
-        { time: '9:00 AM', title: 'Team standup', loc: null },
-        { time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
-        { time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
-        { time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' }
-      ];
+      if (!raw) return seedCalendarEvents();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || !parsed.length) return seedCalendarEvents();
+      const date = todayIsoLocal();
+      return parsed.map(e => e?.date ? e : { ...e, date });
     } catch {
-      return [
-        { time: '9:00 AM', title: 'Team standup', loc: null },
-        { time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
-        { time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
-        { time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' }
-      ];
+      return seedCalendarEvents();
     }
   }
 
@@ -101,11 +111,16 @@ const Store = (() => {
     try { return d.split('T')[0].slice(0, 10) || null; } catch { return null; }
   }
 
+  function getLocalTodayDateString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  }
+
   // Check whether a date string is today or in the future.
   function isOnOrAfterToday(dateStr) {
     const d = normalizeToDateOnly(dateStr);
     if (!d) return false;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalTodayDateString();
     return d >= today;
   }
 
@@ -213,5 +228,19 @@ const Store = (() => {
     saveCalendarEvents(calendarEvents);
   }
 
-  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId };
+  function getRecommendedPlaces() {
+    try {
+      return JSON.parse(localStorage.getItem(DISCOVER_RECOMMENDED_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  function setRecommendedPlaces(places) {
+    try {
+      localStorage.setItem(DISCOVER_RECOMMENDED_KEY, JSON.stringify((places || []).slice(0, 14)));
+    } catch {}
+  }
+
+  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getRecommendedPlaces, setRecommendedPlaces, getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId };
 })();
