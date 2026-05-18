@@ -1,15 +1,18 @@
 :root {
-  --bg: #ffffff;
-  --bg2: #c1abeb;
-  --bg3: #c9b1f6;
-  --border: rgba(50,0,110,0.07);
-  --border2: rgba(50,0,110,0.12);
-  --text: #0a0a09;
-  --text2: #141414;
-  --text3: #10100f;
+  --bg: #fbfaf7;
+  --bg2: #EADFFF;
+  --bg3: #eee7fb;
+  --border: rgba(55,35,86,0.08);
+  --border2: rgba(55,35,86,0.14);
+  --surface: #f5f2f7;
+  --surface-soft: #eae5ec;
+  --sidebar: #372356;
+  --text: #201927;
+  --text2: #665b72;
+  --text3: #948aa0;
   --accent: #39275B;
-  --accent2: #121212;
-  --accent3: #010100;
+  --accent2: #18a058;
+  --accent3: #4479d4;
   --warn: #f5c842;
   --danger: #ff6b6b;
   --font-head: 'Syne', sans-serif;
@@ -22,7 +25,7 @@
 
 body {
   font-family: var(--font-mono);
-  background: var(--bg);
+  background: var(--bg2);
   color: var(--text);
   height: 100vh;
   overflow: hidden;
@@ -36,8 +39,8 @@ body {
 
 /* ── Sidebar ── */
 .sidebar {
-  background: var(--bg2);
-  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+  border-right: 1px solid rgba(255,255,255,0.08);
   display: flex;
   flex-direction: column;
   padding: 20px 14px;
@@ -56,7 +59,7 @@ body {
   height: 32px;
   border-radius: 10px;
   display: block;
-  box-shadow: 0 8px 18px rgba(57,39,91,0.22);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.2);
 }
 
 .brand-name {
@@ -64,6 +67,7 @@ body {
   font-weight: 600;
   font-size: 15px;
   letter-spacing: 0.02em;
+  color: #fffefa
 }
 
 .nav {
@@ -81,7 +85,7 @@ body {
   border-radius: var(--r);
   background: transparent;
   border: none;
-  color: var(--text2);
+  color: rgba(255,254,250,0.72);
   font-family: var(--font-mono);
   font-size: 13px;
   cursor: pointer;
@@ -89,8 +93,8 @@ body {
   transition: all 0.15s;
 }
 
-.nav-item:hover { background: var(--bg3); color: var(--text); }
-.nav-item.active { background: var(--bg3); color: var(--accent); border: 1px solid var(--border2); }
+.nav-item:hover { background: rgba(255,255,255,0.09); color: #fffefa; }
+.nav-item.active { background: #fffefa; color: var(--accent); border: 1px solid rgba(255,255,255,0.22); }
 .nav-item.active svg { color: var(--accent); }
 
 .sidebar-footer { margin-top: auto; }
@@ -139,7 +143,7 @@ body {
 
 .page-title {
   font-family: var(--font-head);
-  font-size: 22px;
+  font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -151,8 +155,8 @@ body {
 }
 
 .card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.72);
   border-radius: var(--r-lg);
   padding: 16px 18px;
   margin-bottom: 14px;
@@ -169,8 +173,8 @@ body {
 
 /* ── Suggest banner ── */
 .suggest {
-  background: var(--bg3);
-  border: 1px solid rgba(184,245,90,0.2);
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.72);
   border-radius: var(--r-lg);
   padding: 16px 18px;
   margin-bottom: 14px;
@@ -221,14 +225,14 @@ body {
 
 .chip:hover { background: var(--bg3); color: var(--text); }
 .chip-accent { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 500; }
-.chip-accent:hover { background: #c9ff6a; }
+.chip-accent:hover { background: #2f1d4d; }
 
 /* ── Stat grid ── */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
 
 .stat-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid rgba(255,255,255,0.72);
   border-radius: var(--r);
   padding: 14px;
 }
@@ -811,7 +815,7 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
 .disc-context-strip {
   margin-bottom: 14px;
   padding: 12px 14px;
-  background: var(--bg2);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r);
 }
@@ -835,7 +839,7 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   align-items: center;
   gap: 5px;
   padding: 4px 10px;
-  background: var(--bg3);
+  background: var(--bg2);
   border: 1px solid var(--border2);
   border-radius: 999px;
   font-size: 11px;
@@ -850,7 +854,7 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   align-items: end;
   margin-bottom: 14px;
   padding: 14px;
-  background: var(--bg2);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
 }
@@ -931,7 +935,7 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
 
 /* ── Discover: Card ─────────────────────────────────────────────────────── */
 .disc-card {
-  background: var(--bg2);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   overflow: hidden;
