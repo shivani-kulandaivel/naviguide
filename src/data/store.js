@@ -82,23 +82,43 @@ const Store = (() => {
   function seedCalendarEvents() {
     const date = todayIsoLocal();
     return [
-      { date, time: '9:00 AM', title: 'Team standup', loc: null },
-      { date, time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
-      { date, time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
-      { date, time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' }
+      { date, time: '9:30 AM', title: 'INFO 200 lecture', loc: 'Mary Gates Hall, University of Washington, Seattle', type: 'class', depart: '9:15 AM', eta: '12 min' },
+      { date, time: '11:00 AM', title: 'CSE 154 section', loc: 'Paul G Allen Center, University of Washington, Seattle', type: 'class', depart: '10:50 AM', eta: '8 min' },
+      { date, time: '12:30 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '12:20 PM', eta: '14 min' },
+      { date, time: '2:00 PM', title: 'MATH 308 lecture', loc: 'Smith Hall, University of Washington, Seattle', type: 'class', depart: '1:45 PM', eta: '15 min' },
+      { date, time: '4:00 PM', title: 'Office hours – Prof Lee', loc: 'Paul G Allen Center, University of Washington, Seattle', type: 'class', depart: '3:55 PM', eta: '5 min' },
+      { date, time: '6:00 PM', title: 'Gym', loc: 'IMA, University of Washington, Seattle', depart: '5:47 PM', eta: '12 min' }
     ];
   }
 
   // Load calendar events from localStorage or provide example events if none exist.
   // Any stored event missing a date gets stamped with today so it still appears.
+  // If the stored set has zero class events, append the seed classes so the map
+  // always shows something representative of a UW day, and persist the merge.
   function loadCalendarEvents() {
     try {
       const raw = localStorage.getItem(CALENDAR_EVENTS_KEY);
-      if (!raw) return seedCalendarEvents();
+      if (!raw) {
+        const fresh = seedCalendarEvents();
+        try { localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(fresh)); } catch {}
+        return fresh;
+      }
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed) || !parsed.length) return seedCalendarEvents();
+      if (!Array.isArray(parsed) || !parsed.length) {
+        const fresh = seedCalendarEvents();
+        try { localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(fresh)); } catch {}
+        return fresh;
+      }
       const date = todayIsoLocal();
-      return parsed.map(e => e?.date ? e : { ...e, date });
+      const stamped = parsed.map(e => e?.date ? e : { ...e, date });
+      const hasClass = stamped.some(e => e?.type === 'class');
+      if (!hasClass) {
+        const seedClasses = seedCalendarEvents().filter(e => e.type === 'class');
+        const merged = [...seedClasses, ...stamped];
+        try { localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(merged)); } catch {}
+        return merged;
+      }
+      return stamped;
     } catch {
       return seedCalendarEvents();
     }
@@ -219,12 +239,24 @@ const Store = (() => {
 
   // Replace all stored calendar events with the provided list and persist them.
   // Only today's and future events are kept; past events are dropped automatically.
+  // Class events from the current state are preserved across updates (so a
+  // Google Calendar sync doesn't wipe your school schedule).
   function setCalendarEvents(events) {
     const items = Array.isArray(events) ? events : [];
-    const filtered = items.filter(e => isOnOrAfterToday(e.date));
-    // Replace the shared array in-place so all references stay valid.
+    const incoming = items.filter(e => isOnOrAfterToday(e.date));
+    const eventKey = e => `${e?.title || ''}|${e?.time || ''}|${e?.date || ''}`;
+    const incomingKeys = new Set(incoming.map(eventKey));
+    const preservedClasses = calendarEvents
+      .filter(e => e?.type === 'class' && isOnOrAfterToday(e.date))
+      .filter(c => !incomingKeys.has(eventKey(c)));
+    // If even the existing list had no classes (e.g. brand-new user syncing fresh),
+    // fall back to the seed classes so the map still has school stops.
+    const classesToKeep = preservedClasses.length
+      ? preservedClasses
+      : (incoming.some(e => e?.type === 'class') ? [] : seedCalendarEvents().filter(e => e.type === 'class'));
+    const merged = [...classesToKeep, ...incoming];
     calendarEvents.length = 0;
-    filtered.forEach(e => calendarEvents.push(e));
+    merged.forEach(e => calendarEvents.push(e));
     saveCalendarEvents(calendarEvents);
   }
 

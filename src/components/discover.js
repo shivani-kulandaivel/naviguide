@@ -18,6 +18,9 @@ const SEED_CARDS = [
     address: '2136 Queen Anne Ave N, Seattle',
     why: '0.1 mi off your AM commute · opens 7am',
     vicinity: 'Queen Anne',
+    rating: 4.5,
+    userRatingsTotal: 312,
+    summary: 'Mellow Queen Anne cafe with strong espresso and an easy laptop vibe.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=2136+Queen+Anne+Ave+N,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -28,6 +31,9 @@ const SEED_CARDS = [
     address: 'Pike St, Capitol Hill, Seattle',
     why: 'Near your 12pm Capitol Hill lunch spot',
     vicinity: 'Capitol Hill',
+    rating: 4.2,
+    userRatingsTotal: 187,
+    summary: 'Seasonal Capitol Hill lunch counter that locals praise for fresh, fast bowls.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Pike+St,+Capitol+Hill,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -38,6 +44,9 @@ const SEED_CARDS = [
     address: '1247 15th Ave E, Seattle',
     why: 'Good wind-down between dentist & gym',
     vicinity: 'First Hill',
+    rating: 4.8,
+    userRatingsTotal: 4521,
+    summary: 'Beloved hilltop park with the conservatory, water tower, and easy loop paths.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Volunteer+Park,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -48,6 +57,9 @@ const SEED_CARDS = [
     address: '1908 Queen Anne Ave N, Seattle',
     why: 'Natural grocery stop on gym→home route',
     vicinity: 'Queen Anne',
+    rating: 4.4,
+    userRatingsTotal: 612,
+    summary: 'Upscale Queen Anne grocery with strong prepared-foods counters and quick checkout.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=1908+Queen+Anne+Ave+N,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -58,6 +70,9 @@ const SEED_CARDS = [
     address: '1521 10th Ave, Capitol Hill',
     why: 'Browse before your Capitol Hill lunch',
     vicinity: 'Capitol Hill',
+    rating: 4.7,
+    userRatingsTotal: 2104,
+    summary: 'Iconic Capitol Hill indie bookstore — huge selection and frequent author events.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Elliott+Bay+Book+Co,+Capitol+Hill,+Seattle&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -68,6 +83,9 @@ const SEED_CARDS = [
     address: '1531 14th Ave, Capitol Hill',
     why: 'Highly rated Italian near your lunch area',
     vicinity: 'Capitol Hill',
+    rating: 4.6,
+    userRatingsTotal: 894,
+    summary: 'Northern Italian fine dining on Capitol Hill — hand-cut tajarin is the move.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Spinasse,+Capitol+Hill,+Seattle&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -83,7 +101,11 @@ const TYPE_COLOR = {
   café: '#b8f55a', restaurant: '#7de8a0', park: '#5acfff',
   market: '#f5c842', bookstore: '#c77dff', bar: '#ff9f7f',
   gallery: '#ffc0f0', gym: '#5acfff', shop: '#f5c842',
-  bakery: '#b8f55a', default: '#c1abeb',
+  bakery: '#b8f55a',
+  cafes: '#3FAE89', dining: '#EF7A4E', drinks: '#9D5BE0',
+  snacks: '#E0A458', 'ice-cream': '#F28FBA', thrift: '#C97A4C',
+  bookstores: '#9072F0', museums: '#3D8ABF', sightseeing: '#E85D75',
+  default: '#c1abeb',
 };
 
 // Convert a 12-hour time string into minutes since midnight for schedule math.
@@ -741,7 +763,10 @@ function buildCard(c) {
   const modeText = c.mode ? `${c.mode} there` : 'route pending';
   const spendText = c.visitMinutes ? `${c.visitMinutes} min there` : `${getEstimatedVisitDuration(c.type)} min there`;
   const totalText = c.totalMinutes ? `${c.totalMinutes} min total` : 'timing pending';
-  const rating = c.rating ? `${c.rating.toFixed(1)} ★${c.userRatingsTotal ? ` (${c.userRatingsTotal})` : ''}` : 'Google place';
+  const ratingValue = typeof c.rating === 'number'
+    ? `${c.rating.toFixed(1)} ★${c.userRatingsTotal ? ` (${c.userRatingsTotal})` : ''}`
+    : 'community';
+  const ratingPill = `<div class="disc-card-rating" style="color:${color}">★ ${typeof c.rating === 'number' ? c.rating.toFixed(1) : '—'}<span class="disc-card-rating-count">${c.userRatingsTotal ? ` · ${c.userRatingsTotal}` : ''}</span></div>`;
 
   return `
     <div class="disc-card" id="card-${c.id}">
@@ -760,9 +785,13 @@ function buildCard(c) {
       </div>
 
       <div class="disc-card-body">
-        <div class="disc-card-name">${c.name}</div>
+        <div class="disc-card-name-row">
+          <div class="disc-card-name">${c.name}</div>
+          ${ratingPill}
+        </div>
         <div class="disc-card-address">${c.address}</div>
-        <div class="disc-card-why" style="color:${color}">${c.why || `${rating} within ${DiscoverState.radiusMiles} mi of your day.`}</div>
+        ${c.summary ? `<div class="disc-card-summary">${c.summary}</div>` : ''}
+        <div class="disc-card-why" style="color:${color}">${c.why || `${ratingValue} within ${DiscoverState.radiusMiles} mi of your day.`}</div>
         <div class="disc-time-stack">
           <span>${modeText}</span>
           <span>${c.oneWayMinutes ? `${c.oneWayMinutes} min each way` : 'calculating travel'}</span>

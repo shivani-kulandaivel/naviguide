@@ -15,8 +15,9 @@
   --accent3: #4479d4;
   --warn: #f5c842;
   --danger: #ff6b6b;
-  --font-head: 'Syne', sans-serif;
-  --font-mono: 'DM Mono', monospace;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-head: 'Fraunces', Georgia, serif;
+  --font-mono: var(--font-sans);
   --r: 10px;
   --r-lg: 16px;
 }
@@ -24,7 +25,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   background: var(--bg2);
   color: var(--text);
   height: 100vh;
@@ -64,9 +65,9 @@ body {
 
 .brand-name {
   font-family: var(--font-head);
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
   color: #fffefa
 }
 
@@ -86,7 +87,8 @@ body {
   background: transparent;
   border: none;
   color: rgba(255,254,250,0.72);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-weight: 600;
   font-size: 13px;
   cursor: pointer;
   text-align: left;
@@ -570,7 +572,60 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
 /* Lift Leaflet zoom controls above the dot tiles. */
 .map-box .leaflet-top,
 .map-box .leaflet-bottom { z-index: 5; }
-.map-box .leaflet-marker-icon { z-index: 4; }
+
+/* Force the SVG overlay (where circleMarker draws) to render above tiles. */
+.map-box .leaflet-overlay-pane,
+.map-box .leaflet-overlay-pane svg,
+.map-box .leaflet-marker-pane,
+.map-box .leaflet-tooltip-pane {
+  z-index: 600;
+}
+.map-box .leaflet-overlay-pane svg {
+  overflow: visible;
+}
+
+/* ── Map dot tooltips (permanent labels above each circleMarker) ── */
+.map-tt.leaflet-tooltip {
+  background: rgba(255,255,255,0.94);
+  border: 1px solid rgba(57,39,91,0.14);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(57,39,91,0.12);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.map-tt.leaflet-tooltip::before { display: none !important; }
+.map-tt-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: #E85D75;
+}
+.map-tt-pill.is-class { background: #4B2E83; }
+.map-tt-pill.is-rec { background: #E85D75; }
+.map-tt-name { font-weight: 600; }
+.map-tt-meta { opacity: 0.7; font-weight: 400; }
+.map-tt-rating {
+  font-weight: 700;
+  color: #c9445b;
+}
+.map-route-tooltip.leaflet-tooltip {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  color: #4B2E83;
+  border: 1px solid rgba(75,46,131,0.18);
+  border-radius: 999px;
+}
 
 /* Slightly punchier Leaflet zoom buttons. */
 .map-box .leaflet-control-zoom a {
@@ -610,6 +665,32 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
 .map-rec-refresh:disabled {
   opacity: 0.6;
   cursor: progress;
+}
+
+/* ── Discover card rating + summary ── */
+.disc-card-name-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.disc-card-rating {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.disc-card-rating-count {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.7;
+}
+.disc-card-summary {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.45;
+  margin: 4px 0 6px;
+  font-style: italic;
 }
 
 /* ── Map detail popup ── */
@@ -690,6 +771,13 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
   font-style: italic;
   margin-bottom: 10px;
   line-height: 1.4;
+}
+.map-popup-summary {
+  font-size: 12px;
+  color: var(--text2, #6b6472);
+  line-height: 1.45;
+  font-style: italic;
+  margin: 0 0 8px;
 }
 .map-popup-actions {
   display: flex;

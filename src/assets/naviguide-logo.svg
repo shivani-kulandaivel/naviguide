@@ -1,24 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
   <title id="title">NaviGuide logo</title>
-  <desc id="desc">A purple compass arrow inside a rounded square.</desc>
+  <desc id="desc">A UW purple and gold compass with an N for NaviGuide.</desc>
   <defs>
     <linearGradient id="badge" x1="10" y1="8" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#b794f6"/>
-      <stop offset="0.52" stop-color="#6d4cb1"/>
-      <stop offset="1" stop-color="#39275b"/>
+      <stop stop-color="#4B2E83"/>
+      <stop offset="0.58" stop-color="#3D246B"/>
+      <stop offset="1" stop-color="#2A174C"/>
     </linearGradient>
     <linearGradient id="needle" x1="24" y1="18" x2="40" y2="46" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#ddd6fe"/>
+      <stop stop-color="#F3E6B3"/>
+      <stop offset="1" stop-color="#D7C891"/>
     </linearGradient>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
       <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#271445" flood-opacity="0.28"/>
     </filter>
   </defs>
-  <rect width="64" height="64" rx="18" fill="#f3e8ff"/>
+  <rect width="64" height="64" rx="18" fill="#F4EAD0"/>
   <circle cx="32" cy="32" r="24" fill="url(#badge)" filter="url(#shadow)"/>
-  <circle cx="32" cy="32" r="15.5" fill="none" stroke="#ffffff" stroke-opacity="0.68" stroke-width="2"/>
+  <circle cx="32" cy="32" r="17" fill="none" stroke="#D7C891" stroke-opacity="0.9" stroke-width="2.2"/>
+  <path d="M32 10.5v5.2M32 48.3v5.2M10.5 32h5.2M48.3 32h5.2" stroke="#D7C891" stroke-linecap="round" stroke-width="2"/>
   <path d="M43.5 14.5 36.2 36.2 14.5 43.5 27.8 27.8 43.5 14.5Z" fill="url(#needle)"/>
-  <path d="M27.8 27.8 36.2 36.2 14.5 43.5 27.8 27.8Z" fill="#c4b5fd"/>
-  <circle cx="32" cy="32" r="2.3" fill="#39275b"/>
+  <path d="M27.8 27.8 36.2 36.2 14.5 43.5 27.8 27.8Z" fill="#85754D"/>
+  <circle cx="32" cy="32" r="10.2" fill="#D7C891" stroke="#D7C891" stroke-width="1.8"/>
+  <text x="32" y="38.2" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="800" fill="#4B2E83">N</text>
 </svg>
