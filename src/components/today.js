@@ -1,6 +1,6 @@
 // Today tab rendering helpers.
-// Creates grouped calendar event cards and renders the Today view with stats.
-// Format a calendar date label for the Today view.
+const TodayState = { filter: 'all', refreshing: false };
+
 function formatCalDate(date) {
   return date ? new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'No date';
 }
@@ -21,7 +21,11 @@ function renderCalendarGroups(events) {
         <div class="cal-row">
           <div class="cal-time">${e.time}</div>
           <div class="cal-body">
-            <div class="cal-title">${e.title}</div>
+            <div class="cal-title-row">
+              <div class="cal-title">${e.title}</div>
+              ${renderEventSourcePill(e)}
+            </div>
+            ${e.url ? `<a class="cal-link" href="${escapeHtmlAttr(e.url)}" target="_blank" rel="noopener">Details</a>` : ''}
             ${getEventLocation(e) ? `<div class="cal-loc">${getEventLocation(e)}</div>` : '<div class="cal-loc" style="color:var(--text3)">Remote</div>'}
             ${e.depart ? `<div class="cal-pill">Leave by ${e.depart} · ~${e.eta}</div>` : ''}
           </div>
@@ -31,11 +35,63 @@ function renderCalendarGroups(events) {
   `).join('');
 }
 
-// Render the Today tab content, including calendar cards and AI prompts.
+function escapeHtmlAttr(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function renderEventSourcePill(e) {
+  const label = window.UwEventsService?.eventSourceLabel?.(e);
+  if (!label) return '';
+  const cls = label === 'Dawg Daze' ? 'event-pill dawg' : label === 'Campus' ? 'event-pill campus' : 'event-pill';
+  return `<span class="${cls}">${label}</span>`;
+}
+
+function buildTodayFilterChips() {
+  const filters = [
+    { id: 'all', label: 'All' },
+    { id: 'mine', label: 'My schedule' },
+    { id: 'campus', label: 'Campus' },
+    { id: 'dawg-daze', label: 'Dawg Daze' }
+  ];
+  return filters.map(f => `
+    <button type="button" class="chip ${TodayState.filter === f.id ? 'chip-accent' : ''}" onclick="setTodayFilter('${f.id}')">${f.label}</button>
+  `).join('');
+}
+
+function buildDynamicSuggestBody(events) {
+  const located = events.filter(e => getEventLocation(e));
+  if (!located.length) return 'Connect Google Calendar or refresh campus events to see route tips for your UW day.';
+  const names = located.slice(0, 3).map(e => `${e.title} (${e.time})`).join(', ');
+  return `Your day includes ${names}. Check the map for campus routes and nearby spots between classes.`;
+}
+
+function buildSocialCardHtml() {
+  const links = window.UwEventsService?.SOCIAL_LINKS || [];
+  if (!links.length) return '';
+  return `
+    <div class="card campus-social-card">
+      <div class="card-label">Campus social</div>
+      <p class="campus-social-copy">Follow UW orientation and campus life — open in Instagram or the official calendar.</p>
+      <div class="campus-social-links">
+        ${links.map(l => `<a class="chip" href="${escapeHtmlAttr(l.url)}" target="_blank" rel="noopener">${l.label}</a>`).join('')}
+      </div>
+      <div class="form-grid" style="grid-template-columns:1fr auto;margin-top:12px">
+        <input type="url" id="social-url-in" placeholder="Paste Instagram post URL (optional)" />
+        <button type="button" class="btn-secondary" onclick="addSocialFromUrl()">Save</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderToday() {
   const pane = document.getElementById('tab-today');
   const stats = Store.getStats();
-  const events = Store.calendarEvents;
+  const allEvents = Store.calendarEvents;
+  const events = window.UwEventsService
+    ? UwEventsService.filterEvents(allEvents, TodayState.filter)
+    : allEvents;
 
   // Convert a time string to minutes since midnight so events can be sorted.
   function timeToMinutes(timeStr) {
@@ -72,22 +128,28 @@ function renderToday() {
       </div>
     </div>
 
-    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div class="today-toolbar">
       <button id="google-calendar-connect-btn" class="btn-primary" onclick="loadGoogleCalendar()">
         Connect Google Calendar
       </button>
-      <span id="google-calendar-activity" style="font-size:14px;color:var(--text2);">
+      <button type="button" class="btn-secondary" id="uw-refresh-btn" onclick="refreshCampusEventsFromToday()">
+        ${TodayState.refreshing ? 'Refreshing…' : 'Refresh campus events'}
+      </button>
+      <span id="google-calendar-activity" class="today-toolbar-status">
         Google Calendar not connected
       </span>
     </div>
 
+    <div class="today-filters">${buildTodayFilterChips()}</div>
+
     <div class="suggest" id="today-suggest">
-      <div class="suggest-label">AI route suggestion</div>
-      <div class="suggest-title">Optimized day ahead</div>
-      <div class="suggest-body">You have lunch in Capitol Hill at 12pm and gym at 6pm. Leave by 11:42 AM — and consider swapping your usual coffee stop to Broadcast on the return trip to save 9 min total.</div>
+      <div class="suggest-label">Your UW day</div>
+      <div class="suggest-title">Campus planner</div>
+      <div class="suggest-body" id="today-suggest-body">${buildDynamicSuggestBody(sortedEvents)}</div>
+      <div class="chips" id="gap-suggestion-chips"></div>
       <div class="chips">
-        <button class="chip chip-accent" onclick="this.closest('.suggest').style.display='none'">Sounds good</button>
-        <button class="chip" onclick="askAI('suggest-ai-out', 'Give me 2 alternative route options for today that avoid highway traffic')">More options</button>
+        <button class="chip chip-accent" onclick="this.closest('.suggest').style.display='none'">Dismiss</button>
+        <button class="chip" onclick="askAI('suggest-ai-out', 'Suggest the best walking route between my UW classes today')">Route tips</button>
       </div>
       <div class="ai-response" id="suggest-ai-out"></div>
     </div>
@@ -131,16 +193,29 @@ function renderToday() {
       </div>
     </div>
 
+    <div class="card nl-add-card">
+      <div class="card-label">Add to my day</div>
+      <p class="nl-add-hint">Describe what to schedule — AI will preview before adding.</p>
+      <div class="form-grid" style="grid-template-columns:1fr auto">
+        <input type="text" id="nl-add-in" placeholder="e.g. Coffee with Alex at 3pm at the HUB" />
+        <button type="button" class="btn-primary" onclick="submitNlAddToDay()">Plan</button>
+      </div>
+      <div class="ai-response" id="nl-add-out"></div>
+    </div>
+
+    ${buildSocialCardHtml()}
+
     <div class="card">
       <div class="card-label">Ask AI about today</div>
       <div class="form-grid" style="grid-template-columns:1fr auto">
-        <input type="text" id="today-q" placeholder="e.g. What's the best time to leave for my 3pm?" />
+        <input type="text" id="today-q" placeholder="e.g. When should I leave for my 3pm class?" />
         <button class="btn-primary" onclick="askAIFromInput('today-q','today-ai-out')">Ask</button>
       </div>
       <div class="ai-response" id="today-ai-out"></div>
     </div>
   `;
   if (window.updateGoogleCalendarStatus) updateGoogleCalendarStatus();
+  loadGapSuggestionChip();
 
   // Build the route map after the DOM is ready.
   const todayStr = (() => {
@@ -158,6 +233,103 @@ function renderToday() {
   const mapEvents = elapsedEvents.length ? elapsedEvents : todayLocatedEvents;
   initRouteMap(mapEvents);
 }
+
+function setTodayFilter(filterId) {
+  TodayState.filter = filterId;
+  renderToday();
+}
+
+async function refreshCampusEventsFromToday() {
+  if (!window.UwEventsService) return;
+  TodayState.refreshing = true;
+  renderToday();
+  try {
+    const result = await UwEventsService.refreshCampusEvents();
+    const status = document.getElementById('google-calendar-activity');
+    if (status) {
+      status.textContent = result.count
+        ? `Loaded ${result.count} campus events (${result.source})`
+        : 'No campus events loaded — using local seed';
+    }
+  } catch (err) {
+    console.error(err);
+    alert(`Could not refresh campus events: ${err.message}`);
+  } finally {
+    TodayState.refreshing = false;
+    renderToday();
+  }
+}
+
+async function submitNlAddToDay() {
+  const input = document.getElementById('nl-add-in');
+  const out = document.getElementById('nl-add-out');
+  if (!input?.value.trim() || !out || !window.AiPlanner) return;
+
+  const text = input.value.trim();
+  input.value = '';
+  out.classList.add('visible');
+  out.innerHTML = '<div class="ai-loading"><div class="ai-spinner"></div>Planning…</div>';
+
+  try {
+    const plan = await AiPlanner.planDayFromText(text);
+    if (plan.intent === 'add_event' && plan.events?.length) {
+      window._pendingAiEvents = plan.events;
+      out.innerHTML = `${plan.message}<br><br>${plan.events.map(e =>
+        `<strong>${e.title}</strong> — ${e.time}${e.loc ? ` @ ${e.loc}` : ''}`
+      ).join('<br>')}<br><br>
+        <button type="button" class="btn-primary" onclick="confirmAiPlanAdd()">Add to calendar</button>
+        <button type="button" class="btn-secondary" style="margin-left:8px" onclick="document.getElementById('nl-add-out').classList.remove('visible')">Cancel</button>`;
+    } else {
+      out.innerHTML = (plan.message || 'Could not parse that request.').replace(/\n/g, '<br>');
+    }
+  } catch (err) {
+    out.innerHTML = `<strong>Error:</strong> ${err.message}`;
+  }
+}
+
+function addSocialFromUrl() {
+  const input = document.getElementById('social-url-in');
+  const url = input?.value?.trim();
+  if (!url) return;
+  const today = Store.getLocalTodayDateString?.() || new Date().toISOString().split('T')[0];
+  Store.addCalendarEvent({
+    date: today,
+    time: 'All Day',
+    title: 'Saved from Instagram',
+    loc: null,
+    url,
+    source: 'social',
+    tags: ['social'],
+    externalId: `social:${url}`
+  });
+  input.value = '';
+  renderToday();
+}
+
+async function loadGapSuggestionChip() {
+  const el = document.getElementById('gap-suggestion-chips');
+  if (!el || !window.AiPlanner) return;
+  const suggestion = await AiPlanner.getGapSuggestionIfNeeded();
+  if (!suggestion) return;
+  el.innerHTML = `
+    <button type="button" class="chip chip-accent" data-gap-suggestion="${escapeHtmlAttr(suggestion)}" onclick="useGapSuggestion(this)">
+      ${escapeHtmlAttr(suggestion)}
+    </button>`;
+}
+
+function useGapSuggestion(btn) {
+  const text = btn?.dataset?.gapSuggestion;
+  const input = document.getElementById('nl-add-in');
+  if (input && text) {
+    input.value = `Add ${text} to my day`;
+    submitNlAddToDay();
+  }
+}
+
+window.setTodayFilter = setTodayFilter;
+window.refreshCampusEventsFromToday = refreshCampusEventsFromToday;
+window.submitNlAddToDay = submitNlAddToDay;
+window.addSocialFromUrl = addSocialFromUrl;
 
 // ── Route map ─────────────────────────────────────────────────────────────────
 async function initRouteMap(events) {
@@ -182,7 +354,7 @@ async function initRouteMap(events) {
     const location = getEventLocation(event);
     try {
       if (!location) return null;
-      const geocoded = await MapsService.geocode(location);
+      const geocoded = await MapsService.geocode(location, { campus: MapsService.isCampusEvent?.(event) });
       return {
         event,
         index,
@@ -202,7 +374,7 @@ async function initRouteMap(events) {
   const uniqueTypes = new Set(recommended.map(r => r?.type).filter(Boolean)).size;
   if (!recommended.length || (recommended.length > 0 && uniqueTypes < 2)) {
     try {
-      const anchor = getEventLocation(events.find(getEventLocation)) || 'Seattle, WA';
+      const anchor = getEventLocation(events.find(getEventLocation)) || 'University of Washington, Seattle, WA';
       const fresh = await loadDefaultRecommendations(anchor);
       if (fresh.length) {
         recommended.length = 0;

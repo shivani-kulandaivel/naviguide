@@ -56,8 +56,9 @@ const MapsService = (() => {
     return leafletPromise;
   }
 
-  function normalizeAddress(address) {
-    if (!address) return 'Seattle, WA';
+  function normalizeAddress(address, options = {}) {
+    const campusDefault = 'University of Washington, Seattle, WA';
+    if (!address) return options.campus ? campusDefault : 'Seattle, WA';
     const cleaned = String(address)
       .replace(/https?:\/\/\S+/g, ' ')
       .replace(/\bJoin (with )?Google Meet\b/gi, ' ')
@@ -67,11 +68,22 @@ const MapsService = (() => {
       .filter(Boolean)
       .find(part => !/^meet\.google\.com/i.test(part)) || String(address).trim();
 
-    return /seattle|washington|\bwa\b/i.test(cleaned) ? cleaned : `${cleaned}, Seattle, WA`;
+    if (/university of washington|\buw\b|husky|odegaard|red square|\bhub\b|allen center|ima\b/i.test(cleaned)) {
+      return /seattle|washington|\bwa\b/i.test(cleaned) ? cleaned : `${cleaned}, ${campusDefault}`;
+    }
+    if (/seattle|washington|\bwa\b/i.test(cleaned)) return cleaned;
+    return options.campus ? `${cleaned}, ${campusDefault}` : `${cleaned}, Seattle, WA`;
   }
 
-  async function geocode(address) {
-    const normalized = normalizeAddress(address);
+  function isCampusEvent(event) {
+    if (!event) return false;
+    if (event.source === 'uw' || (event.tags || []).includes('campus')) return true;
+    const loc = String(event.loc || event.location || '').toLowerCase();
+    return /\buw\b|university of washington|husky|odegaard|red square|allen center|\bhub\b|\bima\b/.test(loc);
+  }
+
+  async function geocode(address, options = {}) {
+    const normalized = normalizeAddress(address, options);
     if (geocodeCache.has(normalized)) return geocodeCache.get(normalized);
 
     const url = `${NOMINATIM_BASE}/search?q=${encodeURIComponent(normalized)}&format=json&limit=1&addressdetails=1`;
@@ -202,5 +214,5 @@ const MapsService = (() => {
       .slice(0, 12);
   }
 
-  return { getApiKey, load, geocode, route, chooseRoundTrip, searchPlaces, normalizeAddress };
+  return { getApiKey, load, geocode, route, chooseRoundTrip, searchPlaces, normalizeAddress, isCampusEvent };
 })();

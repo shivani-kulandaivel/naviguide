@@ -13,6 +13,13 @@ const App = (() => {
     renderDiscover();
     setupNav();
     setupApiKey();
+    if (window.UwEventsService) {
+      try {
+        await UwEventsService.refreshCampusEvents();
+      } catch (err) {
+        console.warn('Campus events refresh skipped', err);
+      }
+    }
     await restoreGoogleCalendarSession();
   }
   // comment
@@ -237,6 +244,7 @@ const App = (() => {
         : null;
       return {
         googleId: event.id,
+        source: 'google',
         date: startISO,
         end: endISO,
         durationMinutes,
@@ -249,9 +257,7 @@ const App = (() => {
       };
     });
 
-    // Replace all events with the authoritative remote list.
-    // Seed/demo events are intentionally discarded once a real calendar is connected.
-    Store.setCalendarEvents(remoteEvents);
+    Store.mergeCalendarEvents(remoteEvents, { replaceSource: 'google' });
   }
 
   // Create a new event in the user's Google Calendar.
@@ -336,19 +342,41 @@ async function getGeminiApiKey() {
   return geminiApiKeyPromise;
 }
 
+function buildSystemPrompt() {
+  const stats = Store.getStats();
+  const routes = Store.getFrequentRoutes().slice(0, 4);
+  const today = Store.getLocalTodayDateString?.() || new Date().toISOString().split('T')[0];
+  const todayEvents = Store.calendarEvents
+    .filter(e => (e.date || '').split('T')[0] === today)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+    .map(e => {
+      const loc = e.loc || e.location;
+      return `${e.time || 'All Day'} ${e.title}${loc ? ` @ ${loc}` : ''}`;
+    })
+    .join('; ') || 'No events yet';
+
+  return `You are NaviGuide, a smart day planner for University of Washington (Seattle) students. The user has ${stats.count} trips logged, avg commute ${stats.avgDur} min, top routes: ${routes.map(r => `${r.from}→${r.to} (${r.count}x)`).join(', ') || 'none'}. Today's calendar: ${todayEvents}. Prefer UW campus locations (HUB, Red Square, Odegaard, Allen Center, IMA). Be helpful, specific, and concise. Use plain text unless JSON is requested.`;
+}
+
+window.buildSystemPrompt = buildSystemPrompt;
+
 // Ask Gemini Flash using the stored AI API key.
-async function askGeminiFlash(prompt, systemPrompt, maxOutputTokens = 400) {
+async function askGeminiFlash(prompt, systemPrompt, maxOutputTokens = 400, options = {}) {
   const apiKey = await getGeminiApiKey();
+  const generationConfig = {
+    maxOutputTokens,
+    temperature: options.temperature ?? 0.7
+  };
+  if (options.json) {
+    generationConfig.responseMimeType = 'application/json';
+  }
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens,
-        temperature: 0.7
-      }
+      generationConfig
     })
   });
 
@@ -382,12 +410,28 @@ async function askAI(outputId, prompt) {
   dot.className = 'status-dot loading';
   txt.textContent = 'Asking AI...';
 
-  const routes = Store.getFrequentRoutes().slice(0, 4);
-  const stats = Store.getStats();
-
-  const systemPrompt = `You are NaviGuide, a smart travel habit assistant. The user has these travel patterns: ${stats.count} trips logged, avg commute ${stats.avgDur} min, top routes: ${routes.map(r=>`${r.from}→${r.to} (${r.count}x, avg ${r.avgDur}min)`).join(', ')}. Today's calendar: Lunch in Capitol Hill at 12pm, Dentist at 3pm, Gym at 6pm. Be helpful, specific, and concise. Use plain text, no markdown formatting.`;
+  const systemPrompt = buildSystemPrompt();
 
   try {
+    if (window.AiPlanner && /\b(add|schedule|put|book|remind|meet|study|coffee|lunch|dinner|appointment)\b/i.test(prompt)) {
+      const plan = await AiPlanner.planDayFromText(prompt);
+      if (plan.intent === 'add_event' && plan.events?.length) {
+        window._pendingAiEvents = plan.events;
+        outEl.innerHTML = `${plan.message.replace(/\n/g, '<br>')}<br><br>${plan.events.map(e =>
+          `<strong>${e.title}</strong> — ${e.time}${e.loc ? ` @ ${e.loc}` : ''}`
+        ).join('<br>')}<br><br><button class="btn-primary" style="margin-top:8px" onclick="confirmAiPlanAdd()">Add to calendar</button>`;
+        dot.className = 'status-dot';
+        txt.textContent = 'AI ready';
+        return;
+      }
+      if (plan.message) {
+        outEl.innerHTML = plan.message.replace(/\n/g, '<br>');
+        dot.className = 'status-dot';
+        txt.textContent = 'AI ready';
+        return;
+      }
+    }
+
     const text = await askGeminiFlash(prompt, systemPrompt, 400);
     outEl.innerHTML = text.replace(/\n/g, '<br>');
 
@@ -408,6 +452,17 @@ async function askAIFromInput(inputId, outputId) {
   input.value = '';
   await askAI(outputId, prompt);
 }
+
+async function confirmAiPlanAdd() {
+  const events = window._pendingAiEvents;
+  if (!events?.length || !window.AiPlanner) return;
+  await AiPlanner.confirmPlannedEvents(events);
+  window._pendingAiEvents = null;
+  const out = document.getElementById('nl-add-out') || document.getElementById('today-ai-out');
+  if (out) out.innerHTML = '<strong>Added to your calendar.</strong>';
+}
+
+window.confirmAiPlanAdd = confirmAiPlanAdd;
 
 // Display a modal that lets the user enter or update the AI API key.
 // Display a modal dialog for the user to enter an AI API key.

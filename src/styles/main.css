@@ -10,7 +10,7 @@
   --text: #201927;
   --text2: #665b72;
   --text3: #948aa0;
-  --accent: #39275B;
+  --accent: #4b2e83;
   --accent2: #18a058;
   --accent3: #4479d4;
   --warn: #f5c842;
@@ -1402,3 +1402,31 @@ button.btn-secondary:hover { background: var(--bg3); color: var(--text); }
 
 /* ── Refresh button state ───────────────────────────────────────────────── */
 .disc-refresh-btn { min-width: 140px; justify-content: center; }
+
+/* ── UW campus / Today ─────────────────────────────────────────────────── */
+.today-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.today-toolbar-status { font-size: 14px; color: var(--text2); }
+.today-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.cal-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.event-pill {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(75, 46, 131, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(75, 46, 131, 0.25);
+  white-space: nowrap;
+}
+.event-pill.campus { background: rgba(75, 46, 131, 0.15); }
+.event-pill.dawg { background: rgba(184, 245, 90, 0.15); color: #2d5a1a; border-color: rgba(184, 245, 90, 0.35); }
+.cal-link { font-size: 11px; color: var(--accent3); margin-top: 4px; display: inline-block; }
+.nl-add-card .nl-add-hint { font-size: 12px; color: var(--text2); margin: 0 0 12px; line-height: 1.5; }
+.campus-social-card .campus-social-copy { font-size: 12px; color: var(--text2); margin: 0 0 10px; line-height: 1.5; }
+.campus-social-links { display: flex; flex-wrap: wrap; gap: 8px; }

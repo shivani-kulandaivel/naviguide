@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/uw-events", "destination": "/api/uw-events.js" }
+  ]
+}

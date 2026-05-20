@@ -1,6 +1,6 @@
-# Naviguide — Travel Habit Tracker
+# NaviGuide — UW campus day planner
 
-A local web app that tracks your travel habits, reads your calendar, and uses Gemini Flash to suggest optimized routes and nearby places.
+A local web app for UW students: campus calendar events, Google Calendar sync, Gemini-powered **Add to my day**, and Discover spots on campus.
 
 ## Setup (2 minutes)
 ## made changes
@@ -41,10 +41,19 @@ Your key is stored in your browser's localStorage — never sent anywhere except
 
 | Tab | Description |
 |-----|-------------|
-| **Today** | Shows your calendar events with departure times and an AI-optimized route suggestion |
-| **Log Trip** | Manually log trips (from, to, duration, mode, purpose). AI can suggest what to log. |
-| **Habits** | Visualizes your frequent routes, busiest days, and transport modes. AI analyzes patterns. |
-| **Discover** | Recommends nearby places that fit your routes and schedule |
+| **Today** | UW calendar with filters (Campus, Dawg Daze), campus event refresh, **Add to my day** (NL → calendar), route map |
+| **Log Trip** | Manually log trips. AI can suggest what to log. |
+| **Discover** | UW campus places that fit gaps in your schedule |
+
+### UW campus events
+
+- **Refresh campus events** pulls from `api/uw-events` (Trumba RSS) when deployed on Vercel/Netlify.
+- Local demo uses `src/data/uw-events-seed.json` if the API is unavailable.
+- Deploy: `vercel` or `netlify deploy` so `/api/uw-events` is reachable.
+
+### Add to my day (AI)
+
+Type natural language on the Today tab (e.g. “Coffee with Alex at 3pm at the HUB”). Gemini returns a preview; tap **Add to calendar** to merge into your day (and Google Calendar if connected).
 
 ---
 

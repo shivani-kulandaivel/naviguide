@@ -82,11 +82,58 @@ const Store = (() => {
   function seedCalendarEvents() {
     const date = todayIsoLocal();
     return [
-      { date, time: '9:00 AM', title: 'Team standup', loc: null },
-      { date, time: '12:00 PM', title: 'Lunch with Sarah', loc: 'Capitol Hill, Seattle', depart: '11:42 AM', eta: '14 min' },
-      { date, time: '3:00 PM', title: 'Dentist appt', loc: 'First Hill Dental', depart: '2:46 PM', eta: '8 min' },
-      { date, time: '6:00 PM', title: 'Gym', loc: 'Seattle Athletic Club', depart: '5:47 PM', eta: '12 min' }
+      { date, time: '9:30 AM', title: 'CSE 142 Lecture', loc: 'Paul G. Allen Center, UW Seattle', source: 'user' },
+      { date, time: '12:00 PM', title: 'Lunch at the HUB', loc: 'Husky Union Building, UW Seattle', source: 'user' },
+      { date, time: '3:00 PM', title: 'CS Club meeting', loc: 'CSE 403, UW Seattle', source: 'user' },
+      { date, time: '6:00 PM', title: 'IMA workout', loc: 'IMA Building, UW Seattle', source: 'user' }
     ];
+  }
+
+  function eventDedupKey(e) {
+    if (e?.externalId) return `ext:${e.externalId}`;
+    if (e?.googleId) return `gcal:${e.googleId}`;
+    const d = normalizeToDateOnly(e?.date) || '';
+    const t = (e?.time || '').toLowerCase().trim();
+    const title = (e?.title || '').toLowerCase().trim();
+    return `local:${d}|${t}|${title}`;
+  }
+
+  function mergeCalendarEvents(incoming, options = {}) {
+    const items = Array.isArray(incoming) ? incoming : [];
+    const replaceSource = options.replaceSource || null;
+    const sourcesToReplace = Array.isArray(replaceSource)
+      ? replaceSource
+      : replaceSource
+        ? [replaceSource]
+        : [];
+
+    let base = calendarEvents.slice();
+    if (sourcesToReplace.length) {
+      base = base.filter(e => !sourcesToReplace.includes(e.source));
+    }
+
+    const byKey = new Map();
+    base.forEach(e => byKey.set(eventDedupKey(e), e));
+
+    items.filter(e => isOnOrAfterToday(e.date)).forEach(e => {
+      byKey.set(eventDedupKey(e), { ...e });
+    });
+
+    const merged = Array.from(byKey.values());
+    setCalendarEvents(merged);
+    return calendarEvents;
+  }
+
+  function removeEventsBySource(source) {
+    const kept = calendarEvents.filter(e => e.source !== source);
+    setCalendarEvents(kept);
+    return calendarEvents;
+  }
+
+  function addCalendarEvent(event) {
+    const next = { source: 'user', ...event };
+    mergeCalendarEvents([next]);
+    return calendarEvents;
   }
 
   // Load calendar events from localStorage or provide example events if none exist.
@@ -242,5 +289,11 @@ const Store = (() => {
     } catch {}
   }
 
-  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getRecommendedPlaces, setRecommendedPlaces, getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId };
+  return {
+    addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown,
+    calendarEvents, setCalendarEvents, mergeCalendarEvents, removeEventsBySource, addCalendarEvent,
+    getRecommendedPlaces, setRecommendedPlaces,
+    getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId,
+    getLocalTodayDateString, todayIsoLocal
+  };
 })();

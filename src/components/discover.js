@@ -13,62 +13,62 @@ const DiscoverState = {
 const SEED_CARDS = [
   {
     id: 'seed-1',
-    name: 'Broadcast Coffee',
+    name: 'By George Café',
     type: 'café',
-    address: '2136 Queen Anne Ave N, Seattle',
-    why: '0.1 mi off your AM commute · opens 7am',
-    vicinity: 'Queen Anne',
-    imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=2136+Queen+Anne+Ave+N,+Seattle,+WA&key=DEMO_KEY&fov=80',
+    address: 'Odegaard Undergraduate Library, UW Seattle',
+    why: 'Study break between classes · on campus',
+    vicinity: 'UW campus',
+    imgUrl: '',
     addedTo: null,
   },
   {
     id: 'seed-2',
-    name: 'Mkt. to Table',
+    name: 'HUB Food Court',
     type: 'restaurant',
-    address: 'Pike St, Capitol Hill, Seattle',
-    why: 'Near your 12pm Capitol Hill lunch spot',
-    vicinity: 'Capitol Hill',
-    imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Pike+St,+Capitol+Hill,+Seattle,+WA&key=DEMO_KEY&fov=80',
+    address: 'Husky Union Building, UW Seattle',
+    why: 'Near your HUB lunch block',
+    vicinity: 'Red Square area',
+    imgUrl: '',
     addedTo: null,
   },
   {
     id: 'seed-3',
-    name: "Volunteer Park",
+    name: 'Red Square',
     type: 'park',
-    address: '1247 15th Ave E, Seattle',
-    why: 'Good wind-down between dentist & gym',
-    vicinity: 'First Hill',
-    imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Volunteer+Park,+Seattle,+WA&key=DEMO_KEY&fov=80',
+    address: 'Red Square, UW Seattle',
+    why: 'Quick outdoor break between meetings',
+    vicinity: 'Central campus',
+    imgUrl: '',
     addedTo: null,
   },
   {
     id: 'seed-4',
-    name: "Metropolitan Market",
-    type: 'market',
-    address: '1908 Queen Anne Ave N, Seattle',
-    why: 'Natural grocery stop on gym→home route',
-    vicinity: 'Queen Anne',
-    imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=1908+Queen+Anne+Ave+N,+Seattle,+WA&key=DEMO_KEY&fov=80',
+    name: 'IMA — Intramural Activities',
+    type: 'gym',
+    address: 'IMA Building, UW Seattle',
+    why: 'Fits after class before heading home',
+    vicinity: 'UW campus',
+    imgUrl: '',
     addedTo: null,
   },
   {
     id: 'seed-5',
-    name: "Elliott Bay Book Co.",
+    name: 'Suzzallo Library',
     type: 'bookstore',
-    address: '1521 10th Ave, Capitol Hill',
-    why: 'Browse before your Capitol Hill lunch',
-    vicinity: 'Capitol Hill',
-    imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Elliott+Bay+Book+Co,+Capitol+Hill,+Seattle&key=DEMO_KEY&fov=80',
+    address: 'Suzzallo Library, UW Seattle',
+    why: 'Quiet study spot on the Quad',
+    vicinity: 'UW campus',
+    imgUrl: '',
     addedTo: null,
   },
   {
     id: 'seed-6',
-    name: "Spinasse",
-    type: 'restaurant',
-    address: '1531 14th Ave, Capitol Hill',
-    why: 'Highly rated Italian near your lunch area',
-    vicinity: 'Capitol Hill',
-    imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Spinasse,+Capitol+Hill,+Seattle&key=DEMO_KEY&fov=80',
+    name: 'District Market',
+    type: 'market',
+    address: 'District Market, UW Seattle',
+    why: 'Grab snacks between Allen Center and HUB',
+    vicinity: 'North campus',
+    imgUrl: '',
     addedTo: null,
   },
 ];
@@ -184,7 +184,7 @@ function renderDiscover() {
     <div class="page-header">
       <div>
         <div class="page-title">Discover</div>
-        <div class="page-sub">Spots that fit your routes & calendar</div>
+        <div class="page-sub">UW campus spots that fit your day</div>
       </div>
       <button class="btn-primary disc-refresh-btn" onclick="discoverRefresh()" style="font-size:12px;padding:8px 14px;display:flex;align-items:center;gap:6px">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M11.5 6.5a5 5 0 1 1-1.5-3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M11.5 2v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -466,6 +466,7 @@ async function confirmAddToSchedule(cardId, gapIdx) {
     title: `Stop: ${card.name}`,
     loc: card.address,
     note: card.why,
+    source: 'user',
   };
 
   if (typeof window.createGoogleCalendarEvent === 'function') {
@@ -525,6 +526,7 @@ async function confirmCustomAdd(cardId) {
     title: `Stop: ${card.name}`,
     loc: card.address,
     note,
+    source: 'user',
   };
 
   if (typeof window.createGoogleCalendarEvent === 'function') {
@@ -600,7 +602,7 @@ async function discoverSearch() {
   const outEl = document.getElementById('disc-ai-out');
   if (outEl) { outEl.classList.add('visible'); outEl.innerHTML = '<div class="ai-loading"><div class="ai-spinner"></div>Searching…</div>'; }
 
-  await askAI('disc-ai-out', `User is in Seattle. Their calendar today has events at: ${getTodayEvents().map(getDiscoverEventLocation).filter(Boolean).join(', ')}. They're looking for: "${query}". Suggest 3 specific real places in Seattle that match, mentioning why each fits their current day. Keep it concise.`);
+  await askAI('disc-ai-out', `User is a UW Seattle student. Their calendar today has events at: ${getTodayEvents().map(getDiscoverEventLocation).filter(Boolean).join(', ') || 'on campus'}. They're looking for: "${query}". Suggest 3 specific real places on or near UW campus that match, mentioning why each fits their current day. Keep it concise.`);
 }
 
 // ── OSM Places Discover experience ───────────────────────────────────────────
