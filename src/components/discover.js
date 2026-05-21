@@ -639,6 +639,202 @@ const DISCOVER_GOOGLE_TYPES = [
   { id: 'sightseeing', label: 'Sightseeing', osmFilters: ['tourism=attraction', 'tourism=viewpoint'] }
 ];
 
+// Specific foods beat generic meal-time words ("burgers for dinner" → burger, not dinner).
+const CUISINE_FOCUS_RULES = [
+  { label: 'burger', terms: ['burger', 'burgers', 'cheeseburger', 'hamburger', 'smash burger'],
+    matchRe: /burger|cheeseburger|grill|umami|five guys|shake shack|burgermaster|red mill|fatburger|lazy dog|kidd valley/i,
+    osmExtra: ['cuisine=burger', 'amenity=fast_food'] },
+  { label: 'pizza', terms: ['pizza', 'pizzeria'], matchRe: /pizza|pizzeria/i, osmExtra: ['cuisine=pizza'] },
+  { label: 'sushi', terms: ['sushi', 'sashimi'], matchRe: /sushi|sashimi|nigiri|izakaya/i, osmExtra: ['cuisine=japanese'] },
+  { label: 'taco', terms: ['taco', 'tacos'], matchRe: /taco|taqueria/i, osmExtra: ['cuisine=mexican'] },
+  { label: 'ramen', terms: ['ramen'], matchRe: /ramen|noodle/i, osmExtra: ['cuisine=ramen', 'cuisine=japanese'] },
+  { label: 'thai', terms: ['thai'], matchRe: /thai/i, osmExtra: ['cuisine=thai'] },
+  { label: 'chinese', terms: ['chinese', 'dim sum'], matchRe: /chinese|dim sum|dumpling/i, osmExtra: ['cuisine=chinese'] },
+  { label: 'mexican', terms: ['mexican'], matchRe: /mexican|taqueria/i, osmExtra: ['cuisine=mexican'] },
+  { label: 'korean', terms: ['korean'], matchRe: /korean|bbq/i, osmExtra: ['cuisine=korean'] },
+  { label: 'vietnamese', terms: ['vietnamese', 'pho'], matchRe: /vietnamese|pho/i, osmExtra: ['cuisine=vietnamese'] },
+  { label: 'japanese', terms: ['japanese'], matchRe: /japanese|izakaya/i, osmExtra: ['cuisine=japanese'] },
+  { label: 'indian', terms: ['indian', 'curry'], matchRe: /indian|curry/i, osmExtra: ['cuisine=indian'] },
+  { label: 'italian', terms: ['italian', 'pasta'], matchRe: /italian|pasta|trattoria/i, osmExtra: ['cuisine=italian'] },
+];
+
+function extractFoodFocusFromQuery(query) {
+  const lower = String(query || '').toLowerCase();
+  let best = null;
+  for (const rule of CUISINE_FOCUS_RULES) {
+    for (const term of rule.terms) {
+      const re = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`, 'i');
+      if (re.test(lower) && (!best || term.length > best.matchedTerm.length)) {
+        best = { ...rule, matchedTerm: term };
+      }
+    }
+  }
+  return best;
+}
+
+function filterPlacesForFoodFocus(places, query) {
+  const focus = extractFoodFocusFromQuery(query);
+  if (!focus) return places;
+  const filtered = places.filter(p => focus.matchRe.test(`${p.name || ''} ${p.summary || ''}`));
+  return filtered.length ? filtered : [];
+}
+
+function rankPlacesForQuery(places, query) {
+  const focus = extractFoodFocusFromQuery(query);
+  return [...places].sort((a, b) => {
+    const score = (p) => {
+      if (!focus) return 0;
+      const hay = `${p.name || ''} ${p.summary || ''}`;
+      return focus.matchRe.test(hay) ? 10 : 0;
+    };
+    const diff = score(b) - score(a);
+    if (diff) return diff;
+    return (b.rating || 0) - (a.rating || 0);
+  });
+}
+
+function applyQueryPlaceFilters(places, query) {
+  const lower = String(query || '').toLowerCase();
+  let list = places;
+  if (/boba|bubble tea|milk tea|tapioca/i.test(lower)) {
+    const teaish = list.filter(p => /boba|bubble|tea|tapioca|milk/i.test(`${p.name} ${p.summary || ''}`));
+    if (teaish.length) list = teaish;
+  }
+  const foodFocus = extractFoodFocusFromQuery(query);
+  if (foodFocus) {
+    const foodish = filterPlacesForFoodFocus(list, query);
+    list = foodish;
+  }
+  return rankPlacesForQuery(list, query);
+}
+
+// Shared with Auto-plan — generic categories only; specific foods use CUISINE_FOCUS_RULES first.
+const DISCOVER_KEYWORD_MAP = [
+  { keywords: ['boba', 'bubble tea', 'milk tea', 'tapioca'],                                      category: 'cafes' },
+  { keywords: ['coffee', 'espresso', 'latte', 'cafe', 'café', 'caffeine', 'study spot', 'grind'], category: 'cafes' },
+  { keywords: ['lunch', 'dinner', 'brunch', 'breakfast', 'eat', 'food', 'hungry', 'restaurant', 'meal'], category: 'dining' },
+  { keywords: ['bar', 'wine', 'beer', 'cocktail', 'drink', 'pub', 'happy hour', 'speakeasy'],     category: 'drinks' },
+  { keywords: ['ice cream', 'gelato', 'scoop', 'frozen', 'soft serve'],                           category: 'ice-cream' },
+  { keywords: ['dessert', 'sweet', 'cake', 'cupcake', 'cookie', 'donut', 'bagel',
+               'pastry', 'snack', 'quick bite', 'fast food'],                                      category: 'snacks' },
+  { keywords: ['thrift', 'second-hand', 'second hand', 'vintage', 'consignment', 'used'],         category: 'thrift' },
+  { keywords: ['book', 'bookstore', 'bookshop', 'novel', 'reading', 'library'],                   category: 'bookstores' },
+  { keywords: ['museum', 'gallery', 'exhibit', 'art show'],                                       category: 'museums' },
+  { keywords: ['scenic', 'view', 'viewpoint', 'sights', 'sightseeing', 'explore', 'attraction',
+               'photo spot', 'overlook', 'park', 'walk'],                                          category: 'sightseeing' },
+];
+
+function resolveDiscoverCategoryFromQuery(query) {
+  const lower = String(query || '').toLowerCase();
+  const foodFocus = extractFoodFocusFromQuery(query);
+  if (foodFocus) {
+    return {
+      placeType: DISCOVER_GOOGLE_TYPES.find(t => t.id === 'dining') || null,
+      matchKeyword: foodFocus.matchedTerm,
+      foodFocus,
+    };
+  }
+  for (const k of DISCOVER_KEYWORD_MAP) {
+    const hit = k.keywords.find(kw => lower.includes(kw));
+    if (hit) {
+      return {
+        placeType: DISCOVER_GOOGLE_TYPES.find(t => t.id === k.category) || null,
+        matchKeyword: hit,
+      };
+    }
+  }
+  return { placeType: DISCOVER_GOOGLE_TYPES.find(t => t.id === 'cafes'), matchKeyword: null };
+}
+
+function placeMatchesDiscoverQuery(place, query, categoryId) {
+  const lower = String(query || '').toLowerCase();
+  if (/boba|bubble tea|milk tea|tapioca/.test(lower)) {
+    return /boba|bubble|tea|cafe|coffee|milk/i.test(`${place.name || ''} ${place.summary || ''} ${place.typeLabel || ''} ${place.type || ''}`);
+  }
+  const focus = extractFoodFocusFromQuery(query);
+  if (focus) {
+    return focus.matchRe.test(`${place.name || ''} ${place.summary || ''} ${place.typeLabel || ''}`);
+  }
+  if (categoryId && place.type && place.type !== categoryId) return false;
+  return true;
+}
+
+function cachedPlaceToOsmShape(p) {
+  return {
+    name: p.name,
+    address: p.address || p.vicinity || '',
+    vicinity: p.vicinity || '',
+    rating: p.rating,
+    userRatingsTotal: p.userRatingsTotal,
+    summary: p.summary || p.why || '',
+    lat: p.lat,
+    lng: p.lng,
+    location: p.lat != null ? { lat: p.lat, lng: p.lng } : null,
+  };
+}
+
+/** Same Overpass search Discover uses — also falls back to cached Discover cards. */
+async function searchDiscoverPlacesNearDay({ query = '', categoryId, radiusMiles } = {}) {
+  const anchor = getDiscoveryAnchor();
+  const resolved = query ? resolveDiscoverCategoryFromQuery(query) : {};
+  const foodFocus = resolved.foodFocus || null;
+  let placeType = categoryId
+    ? DISCOVER_GOOGLE_TYPES.find(t => t.id === categoryId)
+    : null;
+  if (!placeType && query) placeType = resolved.placeType;
+  placeType = placeType || DISCOVER_GOOGLE_TYPES.find(t => t.id === 'cafes');
+
+  const radii = radiusMiles != null ? [Number(radiusMiles)] : [1, 2, 3];
+  for (const r of radii) {
+    try {
+      let places = await MapsService.searchPlaces({
+        centerAddress: anchor,
+        radiusMiles: r,
+        placeType,
+      });
+
+      if (foodFocus?.osmExtra?.length) {
+        try {
+          const focused = await MapsService.searchPlaces({
+            centerAddress: anchor,
+            radiusMiles: r,
+            placeType: { id: 'dining', osmFilters: ['amenity=restaurant', ...foodFocus.osmExtra] },
+          });
+          if (focused.length) places = focused.concat(places);
+        } catch {}
+      }
+
+      if (places.length) {
+        const seen = new Set();
+        const merged = places.filter(p => {
+          const key = p.placeId || p.id || p.name;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        const list = applyQueryPlaceFilters(merged, query);
+        if (list.length) return { places: list, placeType, anchor, radiusMiles: r };
+      }
+    } catch (err) {
+      console.warn('[discover] place search failed', err?.message || err);
+    }
+  }
+
+  const cached = (Store.getRecommendedPlaces?.() || []).filter(p =>
+    placeMatchesDiscoverQuery(p, query, placeType.id)
+  );
+  if (cached.length) {
+    return {
+      places: cached.map(cachedPlaceToOsmShape),
+      placeType,
+      anchor,
+      fromCache: true,
+    };
+  }
+
+  return { places: [], placeType, anchor };
+}
+
 Object.assign(TYPE_COLOR, {
   snacks: '#F2C14E',
   dining: '#57C7A3',
@@ -860,12 +1056,29 @@ async function discoverRefresh() {
 
 async function discoverSearch() {
   const input = document.getElementById('disc-q');
-  if (!input?.value.trim()) return;
-  const query = input.value.trim().toLowerCase();
+  const btn = input?.parentElement?.querySelector('button.btn-primary');
+  if (!input?.value.trim()) {
+    showToast('Type what you\'re looking for first');
+    return;
+  }
+  const query = input.value.trim();
   input.value = '';
-  const custom = DISCOVER_GOOGLE_TYPES.find(t => query.includes(t.label.toLowerCase().split(' ')[0]));
-  if (custom) DiscoverState.placeType = custom.id;
-  await discoverRefresh();
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+
+  const { placeType: matched, matchKeyword } = resolveDiscoverCategoryFromQuery(query);
+
+  if (matched) {
+    DiscoverState.placeType = matched.id;
+    showToast(`Searching ${matched.label.toLowerCase()} near your day (matched "${matchKeyword}")`);
+  } else {
+    showToast(`Couldn\'t match "${query}" to a category — showing ${DISCOVER_GOOGLE_TYPES.find(t => t.id === DiscoverState.placeType)?.label || 'default'}.`);
+  }
+
+  try {
+    await discoverRefresh();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Search'; }
+  }
 }
 
 function getEstimatedVisitDuration(type) {
@@ -886,3 +1099,11 @@ function getEstimatedVisitDuration(type) {
   };
   return durations[type] || 45;
 }
+
+window.DISCOVER_PLACE_TYPES = DISCOVER_GOOGLE_TYPES;
+window.getDiscoveryAnchor = getDiscoveryAnchor;
+window.resolveDiscoverCategoryFromQuery = resolveDiscoverCategoryFromQuery;
+window.searchDiscoverPlacesNearDay = searchDiscoverPlacesNearDay;
+window.extractFoodFocusFromQuery = extractFoodFocusFromQuery;
+window.filterPlacesForFoodFocus = filterPlacesForFoodFocus;
+window.rankPlacesForQuery = rankPlacesForQuery;

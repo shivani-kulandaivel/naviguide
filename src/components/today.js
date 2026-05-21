@@ -64,31 +64,60 @@ function renderToday() {
     return timeToMinutes(a.time) - timeToMinutes(b.time);
   });
 
+  const todayStr = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  })();
+  const todayEvents = sortedEvents.filter(e => {
+    const eventDate = e.date ? e.date.split('T')[0] : todayStr;
+    return eventDate === todayStr;
+  });
+  const gaps = Planner.buildScheduleGaps(todayEvents);
+  const nextMovePlaceholder = buildNextMovePlaceholder();
+  const freeTimePlaceholder = buildFreeTimePlaceholder(gaps);
+
   pane.innerHTML = `
-    <div class="page-header">
+    <div class="page-header today-header">
       <div>
+        <div class="page-eyebrow">${new Date().toLocaleDateString('en-US',{weekday:'long'}).toUpperCase()}</div>
         <div class="page-title">Today</div>
-        <div class="page-sub">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+        <div class="page-sub">${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+      </div>
+      <div class="gcal-strip">
+        <span class="gcal-status" id="google-calendar-activity">Not connected</span>
+        <button id="google-calendar-connect-btn" class="gcal-connect-btn" onclick="loadGoogleCalendar()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M2 6h12M5.5 2v3M10.5 2v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <span>Connect Google Calendar</span>
+        </button>
       </div>
     </div>
 
-    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <button id="google-calendar-connect-btn" class="btn-primary" onclick="loadGoogleCalendar()">
-        Connect Google Calendar
-      </button>
-      <span id="google-calendar-activity" style="font-size:14px;color:var(--text2);">
-        Google Calendar not connected
-      </span>
+    <div id="next-move-card" class="next-move-card">${nextMovePlaceholder}</div>
+
+    <div class="quick-grid">
+      <div id="free-time-card" class="card free-time-card">${freeTimePlaceholder}</div>
+      <div id="route-legs-card" class="card route-legs-card" style="display:none">
+        <div class="card-label">Route legs</div>
+        <div id="route-legs-list"></div>
+      </div>
     </div>
 
     <div class="suggest" id="today-suggest">
-      <div class="suggest-label">AI route suggestion</div>
-      <div class="suggest-title">Optimized day ahead</div>
-      <div class="suggest-body">You have lunch in Capitol Hill at 12pm and gym at 6pm. Leave by 11:42 AM — and consider swapping your usual coffee stop to Broadcast on the return trip to save 9 min total.</div>
-      <div class="chips">
-        <button class="chip chip-accent" onclick="this.closest('.suggest').style.display='none'">Sounds good</button>
-        <button class="chip" onclick="askAI('suggest-ai-out', 'Give me 2 alternative route options for today that avoid highway traffic')">More options</button>
+      <div class="suggest-head">
+        <div>
+          <div class="suggest-label">Why this works</div>
+          <div class="suggest-title" id="suggest-title">Your day at a glance</div>
+        </div>
+        <div class="chips suggest-chips">
+          <button class="chip chip-accent" onclick="explainTodayRoute()">Explain my route</button>
+          <button class="chip" onclick="askAI('suggest-ai-out', buildTodayExplainPrompt())">More detail</button>
+        </div>
       </div>
+      <div class="suggest-body" id="suggest-body">Loading personalized guidance…</div>
+      <div class="source-chips" id="suggest-sources"></div>
       <div class="ai-response" id="suggest-ai-out"></div>
     </div>
 
@@ -108,8 +137,13 @@ function renderToday() {
     </div>
 
       <div class="card">
-      <div class="card-label">Calendar</div>
-      ${renderCalendarGroups(sortedEvents)}
+      <div class="card-label-row">
+        <div class="card-label">Today's calendar</div>
+        <button class="chip" onclick="document.querySelector('.nav-item[data-tab=&quot;myweek&quot;]')?.click()">View week →</button>
+      </div>
+      ${todayEvents.length
+        ? renderCalendarGroups(todayEvents)
+        : '<p class="muted" style="margin:6px 0 0">Nothing on the calendar today. Use Auto-plan to fill the gaps.</p>'}
     </div>
 
     <div class="card">
@@ -142,20 +176,9 @@ function renderToday() {
   `;
   if (window.updateGoogleCalendarStatus) updateGoogleCalendarStatus();
 
-  // Build the route map after the DOM is ready.
-  const todayStr = (() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-  })();
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const todayEvents = sortedEvents.filter(e => {
-    const eventDate = e.date ? e.date.split('T')[0] : todayStr;
-    return eventDate === todayStr;
-  });
   // Pass all of today's events. The map skips non-located events, but can
   // still place classes using known campus fallback coordinates.
-  initRouteMap(todayEvents);
+  initRouteMap(todayEvents, gaps);
 }
 
 // ── Route map ─────────────────────────────────────────────────────────────────
@@ -198,7 +221,7 @@ function getClassFallbackPlace(event) {
   return CLASS_FALLBACK_PLACES.find(place => place.pattern.test(text)) || DEFAULT_CLASS_PLACE;
 }
 
-async function initRouteMap(events) {
+async function initRouteMap(events, scheduleGaps = []) {
   const mapEl = document.getElementById('map');
   if (!mapEl) return;
 
@@ -221,7 +244,7 @@ async function initRouteMap(events) {
 
   console.log('[NaviGuide] initRouteMap →', { eventsCount: events.length, hasClassEvents: events.some(isClassEvent) });
 
-  const recommended = Store.getRecommendedPlaces?.() || [];
+  let recommended = Planner.filterRecommendations(Store.getRecommendedPlaces?.() || []);
   if (!events.length && !recommended.length) {
     renderMapEmpty(mapEl, 'No calendar locations or recommendations yet');
     return;
@@ -405,6 +428,7 @@ async function initRouteMap(events) {
   updateMapLegend(recs, visited);
 
   await drawDashedRouteLegs(map, visited);
+  hydrateTodayPlanner(events, visited, scheduleGaps, recommended);
 }
 
 function renderMapEmpty(mapEl, message) {
@@ -468,9 +492,9 @@ async function drawDashedRouteLegs(map, stops) {
     const path = isWalk ? walkResult.coordinates : buildTransitConnector(from, to);
 
     L.polyline(path, {
-      color: isWalk ? '#6B5E8A' : '#4B2E83',
+      color: Planner.UW_GOLD_ROUTE,
       weight: 3,
-      opacity: isWalk ? 0.85 : 0.78,
+      opacity: 0.55,
       dashArray: isWalk ? '4 8' : '10 8',
       lineCap: 'round'
     })
@@ -640,7 +664,9 @@ function buildRecommendedPopup(item) {
       </div>
       <div class="map-popup-actions">
         <a class="map-popup-btn" href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
-        <a class="map-popup-btn ghost" href="${osmUrl}" target="_blank" rel="noopener">View on OSM</a>
+        <button type="button" class="map-popup-btn ghost" onclick="saveMapRec(${JSON.stringify(String(p.id || ''))})">Save</button>
+        <button type="button" class="map-popup-btn ghost" onclick="dismissMapRec(${JSON.stringify(String(p.id || ''))})">Dismiss</button>
+        <button type="button" class="map-popup-btn" onclick="addRecToLocalCalendar(${JSON.stringify(String(p.name || ''))}, ${JSON.stringify(String(p.address || ''))})">Add to calendar</button>
       </div>
     </div>
   `;

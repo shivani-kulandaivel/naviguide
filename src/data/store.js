@@ -7,6 +7,10 @@ const Store = (() => {
   const API_KEY_KEY = 'wayfarer_api_key';
   const GOOGLE_API_KEY_KEY = 'wayfarer_google_api_key';
   const GOOGLE_CLIENT_ID_KEY = 'wayfarer_google_client_id';
+  const PREFERENCES_KEY = 'wayfarer_preferences';
+  const DISMISSED_RECS_KEY = 'wayfarer_dismissed_recs';
+  const SAVED_RECS_KEY = 'wayfarer_saved_recs';
+  const PLAN_TRIP_DRAFT_KEY = 'wayfarer_plan_trip_draft';
 
   // Default trip history used when no saved trips exist in localStorage.
   const seedTrips = [
@@ -274,5 +278,79 @@ const Store = (() => {
     } catch {}
   }
 
-  return { addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown, calendarEvents, setCalendarEvents, getRecommendedPlaces, setRecommendedPlaces, getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId };
+  function readJson(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function writeJson(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  }
+
+  function getPreferences() {
+    return readJson(PREFERENCES_KEY, {
+      maxWalkMinutes: 25,
+      transport: 'mix',
+      vibes: [],
+      dietary: []
+    });
+  }
+
+  function setPreferences(prefs) {
+    writeJson(PREFERENCES_KEY, { ...getPreferences(), ...prefs });
+  }
+
+  function getDismissedRecIds() {
+    return readJson(DISMISSED_RECS_KEY, []);
+  }
+
+  function dismissRec(id) {
+    const ids = new Set(getDismissedRecIds());
+    ids.add(id);
+    writeJson(DISMISSED_RECS_KEY, [...ids].slice(-80));
+  }
+
+  function getSavedRecIds() {
+    return readJson(SAVED_RECS_KEY, []);
+  }
+
+  function saveRec(id) {
+    const ids = new Set(getSavedRecIds());
+    ids.add(id);
+    writeJson(SAVED_RECS_KEY, [...ids].slice(-80));
+  }
+
+  function getPlanTripDraft() {
+    return readJson(PLAN_TRIP_DRAFT_KEY, null);
+  }
+
+  function setPlanTripDraft(draft) {
+    writeJson(PLAN_TRIP_DRAFT_KEY, draft);
+  }
+
+  function addCalendarEvents(newEvents) {
+    const items = Array.isArray(newEvents) ? newEvents : [];
+    const eventKey = e => `${e?.title || ''}|${e?.time || ''}|${e?.date || ''}`;
+    const keys = new Set(calendarEvents.map(eventKey));
+    items.filter(e => isOnOrAfterToday(e.date)).forEach(e => {
+      if (!keys.has(eventKey(e))) {
+        calendarEvents.push(e);
+        keys.add(eventKey(e));
+      }
+    });
+    saveCalendarEvents(calendarEvents);
+  }
+
+  return {
+    addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown,
+    calendarEvents, setCalendarEvents, addCalendarEvents,
+    getRecommendedPlaces, setRecommendedPlaces,
+    getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId,
+    getPreferences, setPreferences, getDismissedRecIds, dismissRec, getSavedRecIds, saveRec,
+    getPlanTripDraft, setPlanTripDraft
+  };
 })();

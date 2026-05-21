@@ -11,6 +11,8 @@ const App = (() => {
     renderToday();
     renderLog();
     renderDiscover();
+    if (typeof renderAutoPlan === 'function') renderAutoPlan();
+    if (typeof renderMyWeek === 'function') renderMyWeek();
     setupNav();
     setupApiKey();
     await restoreGoogleCalendarSession();
@@ -29,6 +31,8 @@ const App = (() => {
 
         if (btn.dataset.tab === 'today') renderToday();
         if (btn.dataset.tab === 'discover') renderDiscover();
+        if (btn.dataset.tab === 'autoplan' && typeof renderAutoPlan === 'function') renderAutoPlan();
+        if (btn.dataset.tab === 'myweek' && typeof renderMyWeek === 'function') renderMyWeek();
       });
     });
   }
@@ -116,10 +120,13 @@ const App = (() => {
     const btn = document.getElementById('google-calendar-connect-btn');
     const status = document.getElementById('google-calendar-activity');
     if (btn) {
-      btn.textContent = googleCalendarConnected ? 'Refresh Google Calendar' : 'Connect Google Calendar';
+      const label = btn.querySelector('span') || btn;
+      label.textContent = googleCalendarConnected ? 'Refresh' : 'Connect Google Calendar';
+      btn.classList.toggle('is-connected', googleCalendarConnected);
     }
     if (status) {
-      status.textContent = googleCalendarConnected ? 'Connected to Google Calendar' : 'Google Calendar not connected';
+      status.textContent = googleCalendarConnected ? 'Connected' : 'Not connected';
+      status.classList.toggle('is-connected', googleCalendarConnected);
     }
   }
 
