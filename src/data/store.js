@@ -79,16 +79,6 @@ const Store = (() => {
     return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
   }
 
-  function seedCalendarEvents() {
-    const date = todayIsoLocal();
-    return [
-      { date, time: '9:30 AM', title: 'CSE 142 Lecture', loc: 'Paul G. Allen Center, UW Seattle', source: 'user' },
-      { date, time: '12:00 PM', title: 'Lunch at the HUB', loc: 'Husky Union Building, UW Seattle', source: 'user' },
-      { date, time: '3:00 PM', title: 'CS Club meeting', loc: 'CSE 403, UW Seattle', source: 'user' },
-      { date, time: '6:00 PM', title: 'IMA workout', loc: 'IMA Building, UW Seattle', source: 'user' }
-    ];
-  }
-
   function eventDedupKey(e) {
     if (e?.externalId) return `ext:${e.externalId}`;
     if (e?.googleId) return `gcal:${e.googleId}`;
@@ -107,7 +97,7 @@ const Store = (() => {
         ? [replaceSource]
         : [];
 
-    let base = calendarEvents.slice();
+    let base = calendarEvents.filter(e => isOnOrAfterToday(e.date));
     if (sourcesToReplace.length) {
       base = base.filter(e => !sourcesToReplace.includes(e.source));
     }
@@ -124,10 +114,21 @@ const Store = (() => {
     return calendarEvents;
   }
 
+  const SOCIAL_EVENT_SOURCES = ['instagram', 'social'];
+
+  function isSocialCalendarEvent(e) {
+    return SOCIAL_EVENT_SOURCES.includes(e?.source);
+  }
+
   function removeEventsBySource(source) {
-    const kept = calendarEvents.filter(e => e.source !== source);
+    const sources = Array.isArray(source) ? source : [source];
+    const kept = calendarEvents.filter(e => !sources.includes(e.source));
     setCalendarEvents(kept);
     return calendarEvents;
+  }
+
+  function removeSocialCalendarEvents() {
+    return removeEventsBySource(SOCIAL_EVENT_SOURCES);
   }
 
   function addCalendarEvent(event) {
@@ -136,18 +137,26 @@ const Store = (() => {
     return calendarEvents;
   }
 
-  // Load calendar events from localStorage or provide example events if none exist.
-  // Any stored event missing a date gets stamped with today so it still appears.
+  // Load calendar events from localStorage (empty until CSV refresh or user/Google adds events).
   function loadCalendarEvents() {
     try {
       const raw = localStorage.getItem(CALENDAR_EVENTS_KEY);
-      if (!raw) return seedCalendarEvents();
+      if (!raw) return [];
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed) || !parsed.length) return seedCalendarEvents();
+      if (!Array.isArray(parsed) || !parsed.length) return [];
       const date = todayIsoLocal();
-      return parsed.map(e => e?.date ? e : { ...e, date });
+      const normalized = parsed.map(e => (e?.date ? e : { ...e, date }));
+      const filtered = normalized
+        .filter(e => isOnOrAfterToday(e.date))
+        .filter(e => !isSocialCalendarEvent(e));
+      if (filtered.length !== normalized.length) {
+        try {
+          localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(filtered));
+        } catch {}
+      }
+      return filtered;
     } catch {
-      return seedCalendarEvents();
+      return [];
     }
   }
 
@@ -175,7 +184,9 @@ const Store = (() => {
   function saveCalendarEvents(events) {
     try {
       // persist only today and future events
-      const filtered = (events || []).filter(e => isOnOrAfterToday(e.date));
+      const filtered = (events || [])
+        .filter(e => isOnOrAfterToday(e.date))
+        .filter(e => !isSocialCalendarEvent(e));
       localStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(filtered));
     } catch {}
   }
@@ -291,7 +302,7 @@ const Store = (() => {
 
   return {
     addTrip, deleteTrip, getTrips, getStats, getFrequentRoutes, getDayBreakdown, getModeBreakdown,
-    calendarEvents, setCalendarEvents, mergeCalendarEvents, removeEventsBySource, addCalendarEvent,
+    calendarEvents, setCalendarEvents, mergeCalendarEvents, removeEventsBySource, removeSocialCalendarEvents, addCalendarEvent,
     getRecommendedPlaces, setRecommendedPlaces,
     getApiKey, setApiKey, getGoogleApiKey, setGoogleApiKey, getGoogleClientId, setGoogleClientId,
     getLocalTodayDateString, todayIsoLocal

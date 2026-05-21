@@ -52,8 +52,7 @@ function buildTodayFilterChips() {
   const filters = [
     { id: 'all', label: 'All' },
     { id: 'mine', label: 'My schedule' },
-    { id: 'campus', label: 'Campus' },
-    { id: 'dawg-daze', label: 'Dawg Daze' }
+    { id: 'campus', label: 'Campus' }
   ];
   return filters.map(f => `
     <button type="button" class="chip ${TodayState.filter === f.id ? 'chip-accent' : ''}" onclick="setTodayFilter('${f.id}')">${f.label}</button>
@@ -86,6 +85,7 @@ function buildSocialCardHtml() {
 }
 
 function renderToday() {
+  if (TodayState.filter === 'dawg-daze') TodayState.filter = 'all';
   const pane = document.getElementById('tab-today');
   const stats = Store.getStats();
   const allEvents = Store.calendarEvents;
@@ -249,7 +249,7 @@ async function refreshCampusEventsFromToday() {
     if (status) {
       status.textContent = result.count
         ? `Loaded ${result.count} campus events (${result.source})`
-        : 'No campus events loaded — using local seed';
+        : 'No campus events loaded — check src/data/uw-events.csv';
     }
   } catch (err) {
     console.error(err);

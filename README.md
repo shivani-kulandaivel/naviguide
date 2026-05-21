@@ -48,7 +48,7 @@ Your key is stored in your browser's localStorage — never sent anywhere except
 ### UW campus events
 
 - **Refresh campus events** pulls from `api/uw-events` (Trumba RSS) when deployed on Vercel/Netlify.
-- Local demo uses `src/data/uw-events-seed.json` if the API is unavailable.
+- Local demo loads campus events from `src/data/uw-events.csv` if the API is unavailable.
 - Deploy: `vercel` or `netlify deploy` so `/api/uw-events` is reachable.
 
 ### Add to my day (AI)
@@ -60,7 +60,7 @@ Type natural language on the Today tab (e.g. “Coffee with Alex at 3pm at the H
 ## Connecting real data (next steps)
 
 ### Google Calendar
-Replace the seed events in `src/data/store.js` with a real Google Calendar API call:
+Connect Google Calendar from the Today tab to merge your personal schedule:
 ```
 GET https://www.googleapis.com/calendar/v3/calendars/primary/events
 Authorization: Bearer YOUR_OAUTH_TOKEN
@@ -92,7 +92,8 @@ wayfarer/
 ├── src/
 │   ├── app.js              # Nav, Gemini API calls, key management
 │   ├── data/
-│   │   └── store.js        # Trip data, stats, seed calendar events
+│   │   ├── store.js        # Trip data, stats, calendar persistence
+│   │   └── uw-events.csv   # Campus events (May 22–27 demo export)
 │   ├── components/
 │   │   ├── today.js        # Today tab
 │   │   ├── log.js          # Log trip tab

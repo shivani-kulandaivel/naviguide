@@ -13,9 +13,11 @@ const App = (() => {
     renderDiscover();
     setupNav();
     setupApiKey();
+    Store.removeSocialCalendarEvents?.();
     if (window.UwEventsService) {
       try {
         await UwEventsService.refreshCampusEvents();
+        renderToday();
       } catch (err) {
         console.warn('Campus events refresh skipped', err);
       }
