@@ -13,6 +13,7 @@ const App = (() => {
     renderDiscover();
     if (typeof renderAutoPlan === 'function') renderAutoPlan();
     if (typeof renderMyWeek === 'function') renderMyWeek();
+    if (typeof renderUwEvents === 'function') renderUwEvents();
     setupNav();
     setupApiKey();
     await restoreGoogleCalendarSession();
@@ -31,6 +32,7 @@ const App = (() => {
 
         if (btn.dataset.tab === 'today') renderToday();
         if (btn.dataset.tab === 'discover') renderDiscover();
+        if (btn.dataset.tab === 'uw-events' && typeof renderUwEvents === 'function') renderUwEvents();
         if (btn.dataset.tab === 'autoplan' && typeof renderAutoPlan === 'function') renderAutoPlan();
         if (btn.dataset.tab === 'myweek' && typeof renderMyWeek === 'function') renderMyWeek();
       });

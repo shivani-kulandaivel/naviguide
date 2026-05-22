@@ -137,6 +137,7 @@ const AUTOPLAN_QUICK_PROMPTS = [
   'Grab boba and a place to study',
   'Find me a quick lunch',
   'Something fun after my last class',
+  'Meet friends — what UW events are on?',
   'A cafe to grind in for an hour',
   'A scenic walk somewhere on campus',
 ];
@@ -276,10 +277,48 @@ async function autoPlanSend() {
     const gaps = Planner.buildScheduleGaps(Store.calendarEvents);
     AutoPlanState.messages.pop(); // remove thinking bubble
 
-    if (!gaps.length) {
+    const socialQuery = typeof UwEventsService?.isSocialMeetupQuery === 'function'
+      && UwEventsService.isSocialMeetupQuery(text);
+
+    if (!gaps.length && !socialQuery) {
       AutoPlanState.messages.push({
         role: 'ai',
         html: `<span class="autoplan-error">Your day is full — no open gaps to slot anything in.</span>`,
+      });
+      return;
+    }
+
+    AutoPlanState.lastUserQuery = text;
+
+    if (socialQuery) {
+      const usedEventIds = [];
+      const suggestions = [{
+        category: 'uw-event',
+        title: 'Meet friends',
+        gapIndex: 0,
+        rationale: 'Picked from UW Events — good for meeting up on campus.',
+      }];
+      const enriched = [];
+      for (const s of suggestions) {
+        const card = await enrichUwEventSuggestion(s, text, usedEventIds);
+        if (card) {
+          usedEventIds.push(card.uwEvent.id);
+          enriched.push(card);
+        }
+      }
+      if (!enriched.length) {
+        AutoPlanState.messages.push({
+          role: 'ai',
+          html: `<span class="autoplan-error">No upcoming UW Events matched that. Check the <strong>UW Events</strong> tab or try a different day.</span>`,
+        });
+        return;
+      }
+      AutoPlanState.suggestionCards = enriched;
+      enriched.forEach(c => { AutoPlanState.pendingCards[c.id] = c; });
+      const c = enriched[0];
+      AutoPlanState.messages.push({
+        role: 'ai',
+        html: `From <strong>UW Events</strong>: <strong>${escapeHtml(c.place.name)}</strong> — ${escapeHtml(c.eventTime || c.why || '')}. Use the buttons below to add or skip.`,
       });
       return;
     }
@@ -297,7 +336,6 @@ async function autoPlanSend() {
       suggestions = intentsToSuggestions(keywordIntents, gaps);
     }
 
-    AutoPlanState.lastUserQuery = text;
     const usedPlaceKeys = [];
     let enriched = [];
     for (const s of suggestions) {
@@ -418,12 +456,96 @@ Pick 1–3 suggestions matching the user's request. Each durationMin must fit in
   }
 }
 
+const MEAL_WINDOWS = {
+  lunch: {
+    label: 'Lunch',
+    windowStart: 11 * 60 + 30,  // 11:30 AM
+    windowEnd: 14 * 60,         // 2:00 PM
+    defaultStart: 12 * 60,      // 12:00 PM
+    duration: 60,
+  },
+  dinner: {
+    label: 'Dinner',
+    windowStart: 17 * 60 + 30,  // 5:30 PM
+    windowEnd: 20 * 60 + 30,    // 8:30 PM
+    defaultStart: 18 * 60 + 30, // 6:30 PM
+    duration: 60,
+  },
+};
+
+function detectMealType(userText, suggestion) {
+  const hay = `${String(userText || '')} ${suggestion?.title || ''} ${suggestion?.activity || ''}`.toLowerCase();
+  if (/\bdinner\b/.test(hay)) return 'dinner';
+  if (/\b(brunch|lunch)\b/.test(hay)) return 'lunch';
+  return null;
+}
+
+function eventBlocksTime(start, durationMin, events) {
+  const end = start + durationMin;
+  return Planner.getTodayEvents(events || []).some(e => {
+    const es = parseTimeToMinutesLocal(e.time);
+    if (es == null) return false;
+    const ee = es + (Number(e.durationMinutes) || 30);
+    return start < ee && end > es;
+  });
+}
+
+function snapMealStartInWindow(preferred, duration, win, events) {
+  let start = Math.max(win.windowStart, Math.min(preferred, win.windowEnd - duration));
+  for (let i = 0; i < 12; i++) {
+    if (!eventBlocksTime(start, duration, events)) return start;
+    const conflict = Planner.getTodayEvents(events || []).find(e => {
+      const es = parseTimeToMinutesLocal(e.time);
+      if (es == null) return false;
+      const ee = es + (Number(e.durationMinutes) || 30);
+      return start < ee && start + duration > es;
+    });
+    if (conflict) {
+      const es = parseTimeToMinutesLocal(conflict.time);
+      start = es + (Number(conflict.durationMinutes) || 30) + 5;
+      if (start + duration > win.windowEnd) start = win.windowStart;
+      continue;
+    }
+    break;
+  }
+  return Math.max(win.windowStart, Math.min(start, win.windowEnd - duration));
+}
+
+function resolveMealGap(mealType, gaps, events) {
+  const win = MEAL_WINDOWS[mealType];
+  if (!win) return gaps[0] || null;
+
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const duration = win.duration;
+
+  if (nowMin > win.windowEnd) {
+    return gaps.find(g => g.duration >= duration) || gaps[0] || null;
+  }
+
+  let start = win.defaultStart;
+  if (start < nowMin + 10) {
+    start = Math.max(win.windowStart, nowMin + 15);
+  }
+  start = snapMealStartInWindow(start, duration, win, events);
+
+  const end = start + duration;
+  return {
+    startMinutes: start,
+    endMinutes: end,
+    duration,
+    label: `${Planner.minutesToTimeString(start)} – ${Planner.minutesToTimeString(end)}`,
+    badge: 'OK',
+    mealSlot: mealType,
+  };
+}
+
 function intentsToSuggestions(intents, gaps) {
   return intents.map((intent, i) => ({
     category: intent.category,
     title: intent.activity,
     gapIndex: i % gaps.length,
-    durationMin: null,
+    mealType: intent.mealType || detectMealType('', intent),
+    durationMin: intent.mealType ? MEAL_WINDOWS[intent.mealType]?.duration : null,
     rationale: intent.rationale || '',
   }));
 }
@@ -437,9 +559,11 @@ function parseUserIntent(userPrompt) {
     : null;
   if (foodFocus) {
     const label = foodFocus.label.charAt(0).toUpperCase() + foodFocus.label.slice(1);
+    const mealType = detectMealType(userPrompt, null);
     return [{
       category: 'dining',
-      activity: `${label} spot`,
+      activity: mealType ? `${label} for ${mealType}` : `${label} spot`,
+      mealType,
       rationale: `Matched "${foodFocus.matchedTerm}" in your request.`,
     }];
   }
@@ -449,9 +573,10 @@ function parseUserIntent(userPrompt) {
     { keywords: ['boba', 'bubble tea', 'bubble-tea', 'tapioca', 'milk tea'],         category: 'cafes',      activity: 'Boba run' },
     { keywords: ['coffee', 'espresso', 'latte', 'caffeine', 'cafe', 'café'],         category: 'cafes',      activity: 'Coffee break' },
     { keywords: ['study', 'grind', 'work session', 'homework', 'laptop', 'lock in'], category: 'cafes',      activity: 'Study session' },
-    { keywords: ['lunch'],                                                           category: 'dining',     activity: 'Lunch break' },
-    { keywords: ['dinner'],                                                          category: 'dining',     activity: 'Dinner stop' },
-    { keywords: ['eat', 'food', 'hungry', 'restaurant', 'meal', 'brunch'],           category: 'dining',     activity: 'Meal break' },
+    { keywords: ['lunch'],                                                           category: 'dining',     activity: 'Lunch break', mealType: 'lunch' },
+    { keywords: ['dinner'],                                                          category: 'dining',     activity: 'Dinner stop', mealType: 'dinner' },
+    { keywords: ['brunch'],                                                          category: 'dining',     activity: 'Brunch', mealType: 'lunch' },
+    { keywords: ['eat', 'food', 'hungry', 'restaurant', 'meal'],                   category: 'dining',     activity: 'Meal break' },
     { keywords: ['museum', 'gallery', 'exhibit', 'art show'],                        category: 'museums',    activity: 'Museum visit' },
     { keywords: ['scenic', 'view', 'sights', 'sightseeing', 'explore', 'fun thing'], category: 'sightseeing',activity: 'Scenic break' },
     { keywords: ['book', 'bookstore', 'read', 'novel'],                              category: 'bookstores', activity: 'Bookstore browse' },
@@ -485,9 +610,16 @@ function parseUserIntent(userPrompt) {
 
 // Drops a single enriched suggestion onto the calendar (Google if connected,
 // otherwise local). Returns the formatted start time on success, null on fail.
+function formatAutoplanScheduleTime(card) {
+  if (card.cardKind === 'uw-event') {
+    return card.eventTime || Planner.minutesToTimeString(card.gap?.startMinutes);
+  }
+  return Planner.minutesToTimeString(card.gap.startMinutes);
+}
+
 async function addCardToCalendar(card) {
-  const startTime = Planner.minutesToTimeString(card.gap.startMinutes);
-  const todayStr = Planner.todayStr();
+  const startTime = formatAutoplanScheduleTime(card);
+  const todayStr = card.eventDate || Planner.todayStr();
   const newEvent = {
     date: todayStr,
     time: startTime,
@@ -497,9 +629,11 @@ async function addCardToCalendar(card) {
     durationMinutes: card.durationMin,
     note: card.rationale || `Auto-planned ${card.categoryLabel}`,
     autoPlanned: true,
+    uwEvent: card.cardKind === 'uw-event',
   };
 
-  if (typeof window.createGoogleCalendarEvent === 'function' && typeof window.buildGoogleEventDateTime === 'function') {
+  if (typeof window.createGoogleCalendarEvent === 'function' && typeof window.buildGoogleEventDateTime === 'function'
+      && startTime && startTime !== 'All Day') {
     try {
       const dt = window.buildGoogleEventDateTime(startTime, card.durationMin);
       const resource = {
@@ -531,13 +665,58 @@ async function addCardToCalendar(card) {
   return { startTime };
 }
 
+async function enrichUwEventSuggestion(suggestion, userText = '', excludeEventIds = []) {
+  if (typeof UwEventsService?.ensureLoaded !== 'function') return null;
+  await UwEventsService.ensureLoaded();
+  const gaps = Planner.buildScheduleGaps(Store.calendarEvents);
+  const events = UwEventsService.recommendForSocial(userText, {
+    excludeIds: excludeEventIds,
+    limit: 1,
+    gaps,
+  });
+  if (!events.length) return null;
+
+  const event = events[0];
+  const disc = UwEventsService.toDiscoverCard(event);
+  const gap = UwEventsService.gapForEvent(event, gaps);
+
+  return {
+    id: `autoplan-${event.id}`,
+    title: suggestion.title || 'Meet friends',
+    category: 'uw-event',
+    categoryLabel: 'UW Event',
+    cardKind: 'uw-event',
+    place: {
+      name: event.title,
+      address: event.location,
+      vicinity: disc.vicinity,
+      summary: disc.summary,
+    },
+    gap,
+    gapIndex: suggestion.gapIndex ?? 0,
+    durationMin: event.durationMinutes || 90,
+    rationale: suggestion.rationale || `UW Event · ${disc.why}`,
+    eventDate: event.date,
+    eventTime: event.time,
+    day: event.day,
+    isAllDay: event.isAllDay,
+    uwEvent: event,
+    skippedPlaceKeys: [...excludeEventIds],
+    queryText: userText,
+    added: false,
+  };
+}
+
 async function enrichSuggestion(suggestion, userText = '', excludePlaceKeys = []) {
   const categoryId = normalizeAutoplanCategory(suggestion.category, userText);
   const category = AUTOPLAN_CATEGORIES.find(c => c.id === categoryId)
     || { id: categoryId, label: categoryId, visitMinutes: 35 };
 
   const gaps = Planner.buildScheduleGaps(Store.calendarEvents);
-  const gap = gaps[suggestion.gapIndex] || gaps[0];
+  const mealType = suggestion.mealType || detectMealType(userText, suggestion);
+  const gap = mealType
+    ? resolveMealGap(mealType, gaps, Store.calendarEvents)
+    : (gaps[suggestion.gapIndex] || gaps[0]);
   if (!gap) return null;
 
   try {
@@ -548,10 +727,13 @@ async function enrichSuggestion(suggestion, userText = '', excludePlaceKeys = []
     const place = places.find(p => !skipped.has(placeKey(p)));
     if (!place) return null;
 
-    const dur = Math.min(
-      Math.max(15, Number(suggestion.durationMin) || category.visitMinutes),
-      gap.duration
-    );
+    const mealDur = mealType ? MEAL_WINDOWS[mealType].duration : null;
+    const dur = mealDur != null
+      ? mealDur
+      : Math.min(
+        Math.max(15, Number(suggestion.durationMin) || category.visitMinutes),
+        gap.duration
+      );
     const discoverLabel = window.DISCOVER_PLACE_TYPES?.find(t => t.id === categoryId)?.label;
 
     return {
@@ -604,7 +786,7 @@ function renderSuggestionCards(cards) {
     <div class="autoplan-card ${c.added ? 'is-added' : ''} ${c.dismissed ? 'is-dismissed' : ''}" id="autoplan-card-${c.id}">
       <div class="autoplan-card-head">
         <span class="autoplan-card-cat">${escapeHtml(c.categoryLabel)}</span>
-        <span class="autoplan-card-time">${escapeHtml(Planner.minutesToTimeString(c.gap.startMinutes))} · ${c.durationMin} min</span>
+        <span class="autoplan-card-time">${escapeHtml(formatAutoplanScheduleTime(c))} · ${c.durationMin} min</span>
       </div>
       <div class="autoplan-card-name">${escapeHtml(c.place.name)}</div>
       <div class="autoplan-card-addr">${escapeHtml(c.place.address || c.place.vicinity || '')}</div>
@@ -633,8 +815,8 @@ async function autoPlanAddToSchedule(cardId) {
   const btn = cardEl?.querySelector('[data-autoplan-add]');
   if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
 
-  const startTime = Planner.minutesToTimeString(card.gap.startMinutes);
-  const todayStr = Planner.todayStr();
+  const startTime = formatAutoplanScheduleTime(card);
+  const todayStr = card.eventDate || Planner.todayStr();
   const newEvent = {
     date: todayStr,
     time: startTime,
@@ -644,10 +826,12 @@ async function autoPlanAddToSchedule(cardId) {
     durationMinutes: card.durationMin,
     note: card.rationale || `Auto-planned ${card.categoryLabel}`,
     autoPlanned: true,
+    uwEvent: card.cardKind === 'uw-event',
   };
 
   // Push to Google Calendar if connected, otherwise just store locally.
-  if (typeof window.createGoogleCalendarEvent === 'function' && typeof window.buildGoogleEventDateTime === 'function') {
+  if (typeof window.createGoogleCalendarEvent === 'function' && typeof window.buildGoogleEventDateTime === 'function'
+      && startTime && startTime !== 'All Day') {
     try {
       const dt = window.buildGoogleEventDateTime(startTime, card.durationMin);
       const resource = {
@@ -693,6 +877,44 @@ async function autoPlanAddToSchedule(cardId) {
 async function autoPlanDismiss(cardId) {
   const card = getAutoPlanCard(cardId);
   if (!card) return;
+
+  if (card.cardKind === 'uw-event') {
+    const skipped = [...(card.skippedPlaceKeys || []), card.uwEvent?.id].filter(Boolean);
+    await UwEventsService.ensureLoaded();
+    const gaps = Planner.buildScheduleGaps(Store.calendarEvents);
+    const events = UwEventsService.recommendForSocial(card.queryText || AutoPlanState.lastUserQuery, {
+      excludeIds: skipped,
+      limit: 1,
+      gaps,
+    });
+    if (!events.length) {
+      AutoPlanState.suggestionCards = AutoPlanState.suggestionCards.filter(c => c.id !== cardId);
+      delete AutoPlanState.pendingCards[cardId];
+      AutoPlanState.messages.push({
+        role: 'ai',
+        html: `<span class="autoplan-error">No more UW Events matched that.</span>`,
+      });
+      renderAutoPlan();
+      return;
+    }
+    const event = events[0];
+    const disc = UwEventsService.toDiscoverCard(event);
+    card.place = { name: event.title, address: event.location, vicinity: disc.vicinity, summary: disc.summary };
+    card.uwEvent = event;
+    card.eventDate = event.date;
+    card.eventTime = event.time;
+    card.day = event.day;
+    card.gap = UwEventsService.gapForEvent(event, gaps);
+    card.skippedPlaceKeys = skipped;
+    card.rationale = `UW Event · ${disc.why}`;
+    AutoPlanState.pendingCards[cardId] = card;
+    AutoPlanState.messages.push({
+      role: 'ai',
+      html: `Skipped — try <strong>${escapeHtml(event.title)}</strong> (${escapeHtml(event.time)} · ${escapeHtml(event.day)}).`,
+    });
+    renderAutoPlan();
+    return;
+  }
 
   const queryText = card.queryText || AutoPlanState.lastUserQuery || '';
   const skipped = new Set(card.skippedPlaceKeys || []);
