@@ -18,6 +18,9 @@ const SEED_CARDS = [
     address: '2136 Queen Anne Ave N, Seattle',
     why: '0.1 mi off your AM commute · opens 7am',
     vicinity: 'Queen Anne',
+    rating: 4.5,
+    userRatingsTotal: 312,
+    summary: 'Mellow Queen Anne cafe with strong espresso and an easy laptop vibe.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=2136+Queen+Anne+Ave+N,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -28,6 +31,9 @@ const SEED_CARDS = [
     address: 'Pike St, Capitol Hill, Seattle',
     why: 'Near your 12pm Capitol Hill lunch spot',
     vicinity: 'Capitol Hill',
+    rating: 4.2,
+    userRatingsTotal: 187,
+    summary: 'Seasonal Capitol Hill lunch counter that locals praise for fresh, fast bowls.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Pike+St,+Capitol+Hill,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -38,6 +44,9 @@ const SEED_CARDS = [
     address: '1247 15th Ave E, Seattle',
     why: 'Good wind-down between dentist & gym',
     vicinity: 'First Hill',
+    rating: 4.8,
+    userRatingsTotal: 4521,
+    summary: 'Beloved hilltop park with the conservatory, water tower, and easy loop paths.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Volunteer+Park,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -48,6 +57,9 @@ const SEED_CARDS = [
     address: '1908 Queen Anne Ave N, Seattle',
     why: 'Natural grocery stop on gym→home route',
     vicinity: 'Queen Anne',
+    rating: 4.4,
+    userRatingsTotal: 612,
+    summary: 'Upscale Queen Anne grocery with strong prepared-foods counters and quick checkout.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=1908+Queen+Anne+Ave+N,+Seattle,+WA&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -58,6 +70,9 @@ const SEED_CARDS = [
     address: '1521 10th Ave, Capitol Hill',
     why: 'Browse before your Capitol Hill lunch',
     vicinity: 'Capitol Hill',
+    rating: 4.7,
+    userRatingsTotal: 2104,
+    summary: 'Iconic Capitol Hill indie bookstore — huge selection and frequent author events.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Elliott+Bay+Book+Co,+Capitol+Hill,+Seattle&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -68,6 +83,9 @@ const SEED_CARDS = [
     address: '1531 14th Ave, Capitol Hill',
     why: 'Highly rated Italian near your lunch area',
     vicinity: 'Capitol Hill',
+    rating: 4.6,
+    userRatingsTotal: 894,
+    summary: 'Northern Italian fine dining on Capitol Hill — hand-cut tajarin is the move.',
     imgUrl: 'https://maps.googleapis.com/maps/api/streetview?size=400x300&location=Spinasse,+Capitol+Hill,+Seattle&key=DEMO_KEY&fov=80',
     addedTo: null,
   },
@@ -83,7 +101,11 @@ const TYPE_COLOR = {
   café: '#b8f55a', restaurant: '#7de8a0', park: '#5acfff',
   market: '#f5c842', bookstore: '#c77dff', bar: '#ff9f7f',
   gallery: '#ffc0f0', gym: '#5acfff', shop: '#f5c842',
-  bakery: '#b8f55a', default: '#c1abeb',
+  bakery: '#b8f55a',
+  cafes: '#3FAE89', dining: '#EF7A4E', drinks: '#9D5BE0',
+  snacks: '#E0A458', 'ice-cream': '#F28FBA', thrift: '#C97A4C',
+  bookstores: '#9072F0', museums: '#3D8ABF', sightseeing: '#E85D75',
+  default: '#c1abeb',
 };
 
 // Convert a 12-hour time string into minutes since midnight for schedule math.
@@ -617,6 +639,202 @@ const DISCOVER_GOOGLE_TYPES = [
   { id: 'sightseeing', label: 'Sightseeing', osmFilters: ['tourism=attraction', 'tourism=viewpoint'] }
 ];
 
+// Specific foods beat generic meal-time words ("burgers for dinner" → burger, not dinner).
+const CUISINE_FOCUS_RULES = [
+  { label: 'burger', terms: ['burger', 'burgers', 'cheeseburger', 'hamburger', 'smash burger'],
+    matchRe: /burger|cheeseburger|grill|umami|five guys|shake shack|burgermaster|red mill|fatburger|lazy dog|kidd valley/i,
+    osmExtra: ['cuisine=burger', 'amenity=fast_food'] },
+  { label: 'pizza', terms: ['pizza', 'pizzeria'], matchRe: /pizza|pizzeria/i, osmExtra: ['cuisine=pizza'] },
+  { label: 'sushi', terms: ['sushi', 'sashimi'], matchRe: /sushi|sashimi|nigiri|izakaya/i, osmExtra: ['cuisine=japanese'] },
+  { label: 'taco', terms: ['taco', 'tacos'], matchRe: /taco|taqueria/i, osmExtra: ['cuisine=mexican'] },
+  { label: 'ramen', terms: ['ramen'], matchRe: /ramen|noodle/i, osmExtra: ['cuisine=ramen', 'cuisine=japanese'] },
+  { label: 'thai', terms: ['thai'], matchRe: /thai/i, osmExtra: ['cuisine=thai'] },
+  { label: 'chinese', terms: ['chinese', 'dim sum'], matchRe: /chinese|dim sum|dumpling/i, osmExtra: ['cuisine=chinese'] },
+  { label: 'mexican', terms: ['mexican'], matchRe: /mexican|taqueria/i, osmExtra: ['cuisine=mexican'] },
+  { label: 'korean', terms: ['korean'], matchRe: /korean|bbq/i, osmExtra: ['cuisine=korean'] },
+  { label: 'vietnamese', terms: ['vietnamese', 'pho'], matchRe: /vietnamese|pho/i, osmExtra: ['cuisine=vietnamese'] },
+  { label: 'japanese', terms: ['japanese'], matchRe: /japanese|izakaya/i, osmExtra: ['cuisine=japanese'] },
+  { label: 'indian', terms: ['indian', 'curry'], matchRe: /indian|curry/i, osmExtra: ['cuisine=indian'] },
+  { label: 'italian', terms: ['italian', 'pasta'], matchRe: /italian|pasta|trattoria/i, osmExtra: ['cuisine=italian'] },
+];
+
+function extractFoodFocusFromQuery(query) {
+  const lower = String(query || '').toLowerCase();
+  let best = null;
+  for (const rule of CUISINE_FOCUS_RULES) {
+    for (const term of rule.terms) {
+      const re = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`, 'i');
+      if (re.test(lower) && (!best || term.length > best.matchedTerm.length)) {
+        best = { ...rule, matchedTerm: term };
+      }
+    }
+  }
+  return best;
+}
+
+function filterPlacesForFoodFocus(places, query) {
+  const focus = extractFoodFocusFromQuery(query);
+  if (!focus) return places;
+  const filtered = places.filter(p => focus.matchRe.test(`${p.name || ''} ${p.summary || ''}`));
+  return filtered.length ? filtered : [];
+}
+
+function rankPlacesForQuery(places, query) {
+  const focus = extractFoodFocusFromQuery(query);
+  return [...places].sort((a, b) => {
+    const score = (p) => {
+      if (!focus) return 0;
+      const hay = `${p.name || ''} ${p.summary || ''}`;
+      return focus.matchRe.test(hay) ? 10 : 0;
+    };
+    const diff = score(b) - score(a);
+    if (diff) return diff;
+    return (b.rating || 0) - (a.rating || 0);
+  });
+}
+
+function applyQueryPlaceFilters(places, query) {
+  const lower = String(query || '').toLowerCase();
+  let list = places;
+  if (/boba|bubble tea|milk tea|tapioca/i.test(lower)) {
+    const teaish = list.filter(p => /boba|bubble|tea|tapioca|milk/i.test(`${p.name} ${p.summary || ''}`));
+    if (teaish.length) list = teaish;
+  }
+  const foodFocus = extractFoodFocusFromQuery(query);
+  if (foodFocus) {
+    const foodish = filterPlacesForFoodFocus(list, query);
+    list = foodish;
+  }
+  return rankPlacesForQuery(list, query);
+}
+
+// Shared with Auto-plan — generic categories only; specific foods use CUISINE_FOCUS_RULES first.
+const DISCOVER_KEYWORD_MAP = [
+  { keywords: ['boba', 'bubble tea', 'milk tea', 'tapioca'],                                      category: 'cafes' },
+  { keywords: ['coffee', 'espresso', 'latte', 'cafe', 'café', 'caffeine', 'study spot', 'grind'], category: 'cafes' },
+  { keywords: ['lunch', 'dinner', 'brunch', 'breakfast', 'eat', 'food', 'hungry', 'restaurant', 'meal'], category: 'dining' },
+  { keywords: ['bar', 'wine', 'beer', 'cocktail', 'drink', 'pub', 'happy hour', 'speakeasy'],     category: 'drinks' },
+  { keywords: ['ice cream', 'gelato', 'scoop', 'frozen', 'soft serve'],                           category: 'ice-cream' },
+  { keywords: ['dessert', 'sweet', 'cake', 'cupcake', 'cookie', 'donut', 'bagel',
+               'pastry', 'snack', 'quick bite', 'fast food'],                                      category: 'snacks' },
+  { keywords: ['thrift', 'second-hand', 'second hand', 'vintage', 'consignment', 'used'],         category: 'thrift' },
+  { keywords: ['book', 'bookstore', 'bookshop', 'novel', 'reading', 'library'],                   category: 'bookstores' },
+  { keywords: ['museum', 'gallery', 'exhibit', 'art show'],                                       category: 'museums' },
+  { keywords: ['scenic', 'view', 'viewpoint', 'sights', 'sightseeing', 'explore', 'attraction',
+               'photo spot', 'overlook', 'park', 'walk'],                                          category: 'sightseeing' },
+];
+
+function resolveDiscoverCategoryFromQuery(query) {
+  const lower = String(query || '').toLowerCase();
+  const foodFocus = extractFoodFocusFromQuery(query);
+  if (foodFocus) {
+    return {
+      placeType: DISCOVER_GOOGLE_TYPES.find(t => t.id === 'dining') || null,
+      matchKeyword: foodFocus.matchedTerm,
+      foodFocus,
+    };
+  }
+  for (const k of DISCOVER_KEYWORD_MAP) {
+    const hit = k.keywords.find(kw => lower.includes(kw));
+    if (hit) {
+      return {
+        placeType: DISCOVER_GOOGLE_TYPES.find(t => t.id === k.category) || null,
+        matchKeyword: hit,
+      };
+    }
+  }
+  return { placeType: DISCOVER_GOOGLE_TYPES.find(t => t.id === 'cafes'), matchKeyword: null };
+}
+
+function placeMatchesDiscoverQuery(place, query, categoryId) {
+  const lower = String(query || '').toLowerCase();
+  if (/boba|bubble tea|milk tea|tapioca/.test(lower)) {
+    return /boba|bubble|tea|cafe|coffee|milk/i.test(`${place.name || ''} ${place.summary || ''} ${place.typeLabel || ''} ${place.type || ''}`);
+  }
+  const focus = extractFoodFocusFromQuery(query);
+  if (focus) {
+    return focus.matchRe.test(`${place.name || ''} ${place.summary || ''} ${place.typeLabel || ''}`);
+  }
+  if (categoryId && place.type && place.type !== categoryId) return false;
+  return true;
+}
+
+function cachedPlaceToOsmShape(p) {
+  return {
+    name: p.name,
+    address: p.address || p.vicinity || '',
+    vicinity: p.vicinity || '',
+    rating: p.rating,
+    userRatingsTotal: p.userRatingsTotal,
+    summary: p.summary || p.why || '',
+    lat: p.lat,
+    lng: p.lng,
+    location: p.lat != null ? { lat: p.lat, lng: p.lng } : null,
+  };
+}
+
+/** Same Overpass search Discover uses — also falls back to cached Discover cards. */
+async function searchDiscoverPlacesNearDay({ query = '', categoryId, radiusMiles } = {}) {
+  const anchor = getDiscoveryAnchor();
+  const resolved = query ? resolveDiscoverCategoryFromQuery(query) : {};
+  const foodFocus = resolved.foodFocus || null;
+  let placeType = categoryId
+    ? DISCOVER_GOOGLE_TYPES.find(t => t.id === categoryId)
+    : null;
+  if (!placeType && query) placeType = resolved.placeType;
+  placeType = placeType || DISCOVER_GOOGLE_TYPES.find(t => t.id === 'cafes');
+
+  const radii = radiusMiles != null ? [Number(radiusMiles)] : [1, 2, 3];
+  for (const r of radii) {
+    try {
+      let places = await MapsService.searchPlaces({
+        centerAddress: anchor,
+        radiusMiles: r,
+        placeType,
+      });
+
+      if (foodFocus?.osmExtra?.length) {
+        try {
+          const focused = await MapsService.searchPlaces({
+            centerAddress: anchor,
+            radiusMiles: r,
+            placeType: { id: 'dining', osmFilters: ['amenity=restaurant', ...foodFocus.osmExtra] },
+          });
+          if (focused.length) places = focused.concat(places);
+        } catch {}
+      }
+
+      if (places.length) {
+        const seen = new Set();
+        const merged = places.filter(p => {
+          const key = p.placeId || p.id || p.name;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        const list = applyQueryPlaceFilters(merged, query);
+        if (list.length) return { places: list, placeType, anchor, radiusMiles: r };
+      }
+    } catch (err) {
+      console.warn('[discover] place search failed', err?.message || err);
+    }
+  }
+
+  const cached = (Store.getRecommendedPlaces?.() || []).filter(p =>
+    placeMatchesDiscoverQuery(p, query, placeType.id)
+  );
+  if (cached.length) {
+    return {
+      places: cached.map(cachedPlaceToOsmShape),
+      placeType,
+      anchor,
+      fromCache: true,
+    };
+  }
+
+  return { places: [], placeType, anchor };
+}
+
 Object.assign(TYPE_COLOR, {
   snacks: '#F2C14E',
   dining: '#57C7A3',
@@ -741,7 +959,10 @@ function buildCard(c) {
   const modeText = c.mode ? `${c.mode} there` : 'route pending';
   const spendText = c.visitMinutes ? `${c.visitMinutes} min there` : `${getEstimatedVisitDuration(c.type)} min there`;
   const totalText = c.totalMinutes ? `${c.totalMinutes} min total` : 'timing pending';
-  const rating = c.rating ? `${c.rating.toFixed(1)} ★${c.userRatingsTotal ? ` (${c.userRatingsTotal})` : ''}` : 'Google place';
+  const ratingValue = typeof c.rating === 'number'
+    ? `${c.rating.toFixed(1)} ★${c.userRatingsTotal ? ` (${c.userRatingsTotal})` : ''}`
+    : 'community';
+  const ratingPill = `<div class="disc-card-rating" style="color:${color}">★ ${typeof c.rating === 'number' ? c.rating.toFixed(1) : '—'}<span class="disc-card-rating-count">${c.userRatingsTotal ? ` · ${c.userRatingsTotal}` : ''}</span></div>`;
 
   return `
     <div class="disc-card" id="card-${c.id}">
@@ -760,9 +981,13 @@ function buildCard(c) {
       </div>
 
       <div class="disc-card-body">
-        <div class="disc-card-name">${c.name}</div>
+        <div class="disc-card-name-row">
+          <div class="disc-card-name">${c.name}</div>
+          ${ratingPill}
+        </div>
         <div class="disc-card-address">${c.address}</div>
-        <div class="disc-card-why" style="color:${color}">${c.why || `${rating} within ${DiscoverState.radiusMiles} mi of your day.`}</div>
+        ${c.summary ? `<div class="disc-card-summary">${c.summary}</div>` : ''}
+        <div class="disc-card-why" style="color:${color}">${c.why || `${ratingValue} within ${DiscoverState.radiusMiles} mi of your day.`}</div>
         <div class="disc-time-stack">
           <span>${modeText}</span>
           <span>${c.oneWayMinutes ? `${c.oneWayMinutes} min each way` : 'calculating travel'}</span>
@@ -831,12 +1056,29 @@ async function discoverRefresh() {
 
 async function discoverSearch() {
   const input = document.getElementById('disc-q');
-  if (!input?.value.trim()) return;
-  const query = input.value.trim().toLowerCase();
+  const btn = input?.parentElement?.querySelector('button.btn-primary');
+  if (!input?.value.trim()) {
+    showToast('Type what you\'re looking for first');
+    return;
+  }
+  const query = input.value.trim();
   input.value = '';
-  const custom = DISCOVER_GOOGLE_TYPES.find(t => query.includes(t.label.toLowerCase().split(' ')[0]));
-  if (custom) DiscoverState.placeType = custom.id;
-  await discoverRefresh();
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+
+  const { placeType: matched, matchKeyword } = resolveDiscoverCategoryFromQuery(query);
+
+  if (matched) {
+    DiscoverState.placeType = matched.id;
+    showToast(`Searching ${matched.label.toLowerCase()} near your day (matched "${matchKeyword}")`);
+  } else {
+    showToast(`Couldn\'t match "${query}" to a category — showing ${DISCOVER_GOOGLE_TYPES.find(t => t.id === DiscoverState.placeType)?.label || 'default'}.`);
+  }
+
+  try {
+    await discoverRefresh();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Search'; }
+  }
 }
 
 function getEstimatedVisitDuration(type) {
@@ -857,3 +1099,11 @@ function getEstimatedVisitDuration(type) {
   };
   return durations[type] || 45;
 }
+
+window.DISCOVER_PLACE_TYPES = DISCOVER_GOOGLE_TYPES;
+window.getDiscoveryAnchor = getDiscoveryAnchor;
+window.resolveDiscoverCategoryFromQuery = resolveDiscoverCategoryFromQuery;
+window.searchDiscoverPlacesNearDay = searchDiscoverPlacesNearDay;
+window.extractFoodFocusFromQuery = extractFoodFocusFromQuery;
+window.filterPlacesForFoodFocus = filterPlacesForFoodFocus;
+window.rankPlacesForQuery = rankPlacesForQuery;

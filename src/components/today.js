@@ -64,31 +64,60 @@ function renderToday() {
     return timeToMinutes(a.time) - timeToMinutes(b.time);
   });
 
+  const todayStr = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  })();
+  const todayEvents = sortedEvents.filter(e => {
+    const eventDate = e.date ? e.date.split('T')[0] : todayStr;
+    return eventDate === todayStr;
+  });
+  const gaps = Planner.buildScheduleGaps(todayEvents);
+  const nextMovePlaceholder = buildNextMovePlaceholder();
+  const freeTimePlaceholder = buildFreeTimePlaceholder(gaps);
+
   pane.innerHTML = `
-    <div class="page-header">
+    <div class="page-header today-header">
       <div>
+        <div class="page-eyebrow">${new Date().toLocaleDateString('en-US',{weekday:'long'}).toUpperCase()}</div>
         <div class="page-title">Today</div>
-        <div class="page-sub">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+        <div class="page-sub">${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+      </div>
+      <div class="gcal-strip">
+        <span class="gcal-status" id="google-calendar-activity">Not connected</span>
+        <button id="google-calendar-connect-btn" class="gcal-connect-btn" onclick="loadGoogleCalendar()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M2 6h12M5.5 2v3M10.5 2v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <span>Connect Google Calendar</span>
+        </button>
       </div>
     </div>
 
-    <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <button id="google-calendar-connect-btn" class="btn-primary" onclick="loadGoogleCalendar()">
-        Connect Google Calendar
-      </button>
-      <span id="google-calendar-activity" style="font-size:14px;color:var(--text2);">
-        Google Calendar not connected
-      </span>
+    <div id="next-move-card" class="next-move-card">${nextMovePlaceholder}</div>
+
+    <div class="quick-grid">
+      <div id="free-time-card" class="card free-time-card">${freeTimePlaceholder}</div>
+      <div id="route-legs-card" class="card route-legs-card" style="display:none">
+        <div class="card-label">Route legs</div>
+        <div id="route-legs-list"></div>
+      </div>
     </div>
 
     <div class="suggest" id="today-suggest">
-      <div class="suggest-label">AI route suggestion</div>
-      <div class="suggest-title">Optimized day ahead</div>
-      <div class="suggest-body">You have lunch in Capitol Hill at 12pm and gym at 6pm. Leave by 11:42 AM — and consider swapping your usual coffee stop to Broadcast on the return trip to save 9 min total.</div>
-      <div class="chips">
-        <button class="chip chip-accent" onclick="this.closest('.suggest').style.display='none'">Sounds good</button>
-        <button class="chip" onclick="askAI('suggest-ai-out', 'Give me 2 alternative route options for today that avoid highway traffic')">More options</button>
+      <div class="suggest-head">
+        <div>
+          <div class="suggest-label">Why this works</div>
+          <div class="suggest-title" id="suggest-title">Your day at a glance</div>
+        </div>
+        <div class="chips suggest-chips">
+          <button class="chip chip-accent" onclick="explainTodayRoute()">Explain my route</button>
+          <button class="chip" onclick="askAI('suggest-ai-out', buildTodayExplainPrompt())">More detail</button>
+        </div>
       </div>
+      <div class="suggest-body" id="suggest-body">Loading personalized guidance…</div>
+      <div class="source-chips" id="suggest-sources"></div>
       <div class="ai-response" id="suggest-ai-out"></div>
     </div>
 
@@ -108,8 +137,13 @@ function renderToday() {
     </div>
 
       <div class="card">
-      <div class="card-label">Calendar</div>
-      ${renderCalendarGroups(sortedEvents)}
+      <div class="card-label-row">
+        <div class="card-label">Today's calendar</div>
+        <button class="chip" onclick="document.querySelector('.nav-item[data-tab=&quot;myweek&quot;]')?.click()">View week →</button>
+      </div>
+      ${todayEvents.length
+        ? renderCalendarGroups(todayEvents)
+        : '<p class="muted" style="margin:6px 0 0">Nothing on the calendar today. Use Auto-plan to fill the gaps.</p>'}
     </div>
 
     <div class="card">
@@ -142,29 +176,75 @@ function renderToday() {
   `;
   if (window.updateGoogleCalendarStatus) updateGoogleCalendarStatus();
 
-  // Build the route map after the DOM is ready.
-  const todayStr = (() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-  })();
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const todayLocatedEvents = sortedEvents.filter(e => {
-    if (!getEventLocation(e)) return false;
-    const eventDate = e.date ? e.date.split('T')[0] : todayStr;
-    return eventDate === todayStr;
-  });
-  const elapsedEvents = todayLocatedEvents.filter(e => timeToMinutes(e.time) <= nowMinutes);
-  const mapEvents = elapsedEvents.length ? elapsedEvents : todayLocatedEvents;
-  initRouteMap(mapEvents);
+  // Pass all of today's events. The map skips non-located events, but can
+  // still place classes using known campus fallback coordinates.
+  initRouteMap(todayEvents, gaps);
 }
 
 // ── Route map ─────────────────────────────────────────────────────────────────
-async function initRouteMap(events) {
+const CLASS_ICON_COLOR = '#4B2E83';
+const CLASS_DOT_COLOR = '#B7A57A';
+const CLASS_FALLBACK_PLACES = [
+  {
+    pattern: /\b(INFO\s*200|Mary Gates)\b/i,
+    location: 'Mary Gates Hall, University of Washington, Seattle',
+    position: [47.6558, -122.3079]
+  },
+  {
+    pattern: /\b(CSE\s*154|Allen Center|Paul G Allen)\b/i,
+    location: 'Paul G Allen Center, University of Washington, Seattle',
+    position: [47.6539, -122.3050]
+  },
+  {
+    pattern: /\b(MATH\s*308|Smith Hall)\b/i,
+    location: 'Smith Hall, University of Washington, Seattle',
+    position: [47.6564, -122.3070]
+  }
+];
+const DEFAULT_CLASS_PLACE = {
+  location: 'University of Washington, Seattle',
+  position: [47.6553, -122.3035]
+};
+
+function isClassEvent(event) {
+  if (event?.type === 'class') return true;
+
+  const title = String(event?.title || '');
+  return /\b[A-Z]{2,}\s*\d{3}[A-Z]?\b/.test(title)
+    || /\b(lecture|section|seminar|lab|office hours)\b/i.test(title);
+}
+
+function getClassFallbackPlace(event) {
+  if (!isClassEvent(event)) return null;
+
+  const text = `${event?.title || ''} ${getEventLocation(event)}`;
+  return CLASS_FALLBACK_PLACES.find(place => place.pattern.test(text)) || DEFAULT_CLASS_PLACE;
+}
+
+async function initRouteMap(events, scheduleGaps = []) {
   const mapEl = document.getElementById('map');
   if (!mapEl) return;
 
-  const recommended = Store.getRecommendedPlaces?.() || [];
+  // Force class events into the map if they're missing — defensive against
+  // stale localStorage that hasn't picked up the seed class injection.
+  const hasClassEvents = events.some(isClassEvent);
+  if (!hasClassEvents) {
+    const todayStr = (() => {
+      const n = new Date();
+      return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+    })();
+    const fallbackClasses = [
+      { date: todayStr, time: '9:30 AM', title: 'INFO 200 lecture', loc: 'Mary Gates Hall, University of Washington, Seattle', type: 'class' },
+      { date: todayStr, time: '11:00 AM', title: 'CSE 154 section', loc: 'Paul G Allen Center, University of Washington, Seattle', type: 'class' },
+      { date: todayStr, time: '2:00 PM', title: 'MATH 308 lecture', loc: 'Smith Hall, University of Washington, Seattle', type: 'class' },
+      { date: todayStr, time: '4:00 PM', title: 'Office hours – Prof Lee', loc: 'Paul G Allen Center, University of Washington, Seattle', type: 'class' }
+    ];
+    events = [...fallbackClasses, ...events];
+  }
+
+  console.log('[NaviGuide] initRouteMap →', { eventsCount: events.length, hasClassEvents: events.some(isClassEvent) });
+
+  let recommended = Planner.filterRecommendations(Store.getRecommendedPlaces?.() || []);
   if (!events.length && !recommended.length) {
     renderMapEmpty(mapEl, 'No calendar locations or recommendations yet');
     return;
@@ -180,7 +260,18 @@ async function initRouteMap(events) {
   const failedLocations = [];
   const visited = (await Promise.all(events.map(async (event, index) => {
     const location = getEventLocation(event);
+    const classFallback = getClassFallbackPlace(event);
     try {
+      if (classFallback) {
+        return {
+          event: location ? event : { ...event, loc: classFallback.location, location: classFallback.location },
+          index,
+          position: classFallback.position,
+          label: summarizePlace(event.title || classFallback.location),
+          minutes: estimateEventDuration(events, index)
+        };
+      }
+
       if (!location) return null;
       const geocoded = await MapsService.geocode(location);
       return {
@@ -197,10 +288,12 @@ async function initRouteMap(events) {
   }))).filter(Boolean);
 
   // Auto-seed nearby spots when there are none yet, OR when the stored set
-  // is stale and only has one category (e.g. left over from an older version
-  // that only loaded cafes). Either way the user gets variety automatically.
+  // is stale (single-category or missing ratings/summaries from an older
+  // version). Either way the user gets variety + ratings automatically.
   const uniqueTypes = new Set(recommended.map(r => r?.type).filter(Boolean)).size;
-  if (!recommended.length || (recommended.length > 0 && uniqueTypes < 2)) {
+  const lacksRatings = recommended.length > 0
+    && !recommended.every(r => typeof r?.rating === 'number' && typeof r?.summary === 'string');
+  if (!recommended.length || uniqueTypes < 2 || lacksRatings) {
     try {
       const anchor = getEventLocation(events.find(getEventLocation)) || 'Seattle, WA';
       const fresh = await loadDefaultRecommendations(anchor);
@@ -265,40 +358,77 @@ async function initRouteMap(events) {
     map.setView(all[0].position, 14);
   }
 
+  // Ensure Leaflet recalculates the container size — fixes "tiles render but
+  // markers don't" when the map card animates in or its height shifts.
+  setTimeout(() => map.invalidateSize(), 50);
+
   const visitedColors = ['#7B61FF', '#57C7A3', '#F2C14E', '#4EA5D9', '#B66DFF'];
+  let addedVisited = 0;
   visited.forEach((item, i) => {
-    const size = Math.min(34, Math.max(15, 12 + item.minutes / 8));
-    const color = visitedColors[i % visitedColors.length];
-    L.marker(item.position, {
-      icon: makeDotIcon({
-        label: item.label,
-        size,
-        color,
-        meta: `${item.minutes} min`
+    const isClass = isClassEvent(item.event);
+    // Larger sizes so the dots are obvious against the light tiles.
+    const size = Math.min(40, Math.max(20, 18 + item.minutes / 6));
+    const color = isClass ? CLASS_DOT_COLOR : visitedColors[i % visitedColors.length];
+
+    try {
+      const marker = L.circleMarker(item.position, {
+        radius: size / 2,
+        fillColor: color,
+        color: '#ffffff',
+        weight: 3,
+        fillOpacity: 1,
+        opacity: 1
       })
-    })
-      .bindPopup(buildVisitedPopup(item, color), { className: 'map-popup-wrap', maxWidth: 260 })
-      .addTo(map);
+        .bindPopup(buildVisitedPopup(item, color), { className: 'map-popup-wrap', maxWidth: 260 })
+        .addTo(map);
+
+      const pill = isClass ? `<span class="map-tt-pill is-class">CLASS</span>` : '';
+      marker.bindTooltip(
+        `${pill}<span class="map-tt-name">${escapeHtml(item.label)}</span><span class="map-tt-meta">${item.minutes}m</span>`,
+        { permanent: true, direction: 'top', offset: [0, -(size / 2) - 2], className: 'map-tt' + (isClass ? ' is-class' : '') }
+      );
+      addedVisited++;
+    } catch (err) {
+      console.error('[NaviGuide] visited marker failed:', err, item);
+    }
   });
 
+  let addedRecs = 0;
   recs.forEach(item => {
     const style = recStyle(item.place.type);
-    L.marker(item.position, {
-      icon: makeDotIcon({
-        label: summarizePlace(item.place.name || item.place.typeLabel),
-        size: 18,
-        color: style.color,
-        recommended: true,
-        meta: item.place.totalMinutes ? `${item.place.totalMinutes} min total` : ''
+    const radius = 12;
+    try {
+      const marker = L.circleMarker(item.position, {
+        radius,
+        fillColor: style.color,
+        color: '#ffffff',
+        weight: 3,
+        fillOpacity: 1,
+        opacity: 1
       })
-    })
-      .bindPopup(buildRecommendedPopup(item), { className: 'map-popup-wrap', maxWidth: 280 })
-      .addTo(map);
+        .bindPopup(buildRecommendedPopup(item), { className: 'map-popup-wrap', maxWidth: 280 })
+        .addTo(map);
+
+      const label = summarizePlace(item.place.name || item.place.typeLabel);
+      const ratingChip = typeof item.place.rating === 'number'
+        ? ` <span class="map-tt-rating">★${item.place.rating.toFixed(1)}</span>`
+        : '';
+      marker.bindTooltip(
+        `<span class="map-tt-pill is-rec">RECOMMENDED</span><span class="map-tt-name">${escapeHtml(label)}</span>${ratingChip}`,
+        { permanent: true, direction: 'top', offset: [0, -radius - 2], className: 'map-tt is-rec' }
+      );
+      addedRecs++;
+    } catch (err) {
+      console.error('[NaviGuide] rec marker failed:', err, item);
+    }
   });
 
-  updateMapLegend(recs);
+  console.log(`[NaviGuide] map markers added: ${addedVisited} visited, ${addedRecs} recommended`);
+
+  updateMapLegend(recs, visited);
 
   await drawDashedRouteLegs(map, visited);
+  hydrateTodayPlanner(events, visited, scheduleGaps, recommended);
 }
 
 function renderMapEmpty(mapEl, message) {
@@ -356,16 +486,48 @@ async function drawDashedRouteLegs(map, stops) {
   for (let i = 0; i < stops.length - 1; i++) {
     const from = { lat: stops[i].position[0], lng: stops[i].position[1] };
     const to = { lat: stops[i + 1].position[0], lng: stops[i + 1].position[1] };
-    const result = await MapsService.route(from, to, 'driving');
-    const path = result?.coordinates?.length ? result.coordinates : [stops[i].position, stops[i + 1].position];
+    const miles = distanceMiles(from, to);
+    const walkResult = miles <= 0.75 ? await MapsService.route(from, to, 'walking') : null;
+    const isWalk = !!walkResult?.coordinates?.length;
+    const path = isWalk ? walkResult.coordinates : buildTransitConnector(from, to);
+
     L.polyline(path, {
-      color: '#B9B8BE',
+      color: Planner.UW_GOLD_ROUTE,
       weight: 3,
-      opacity: 0.85,
-      dashArray: '6 8',
+      opacity: 0.55,
+      dashArray: isWalk ? '4 8' : '10 8',
       lineCap: 'round'
-    }).addTo(map);
+    })
+      .bindTooltip(isWalk ? 'Walkable route' : 'Bus/transit leg', {
+        sticky: true,
+        className: 'map-route-tooltip'
+      })
+      .addTo(map);
   }
+}
+
+function distanceMiles(from, to) {
+  const radiusMiles = 3958.8;
+  const toRadians = deg => deg * Math.PI / 180;
+  const dLat = toRadians(to.lat - from.lat);
+  const dLng = toRadians(to.lng - from.lng);
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * radiusMiles * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function buildTransitConnector(from, to) {
+  const midpoint = {
+    lat: (from.lat + to.lat) / 2 + 0.0015,
+    lng: (from.lng + to.lng) / 2
+  };
+  return [
+    [from.lat, from.lng],
+    [midpoint.lat, midpoint.lng],
+    [to.lat, to.lng]
+  ];
 }
 
 // Default categories pulled when seeding the map with variety.
@@ -461,9 +623,12 @@ function escapeHtml(str) {
 function buildVisitedPopup(item, color) {
   const e = item.event || {};
   const loc = getEventLocation(e);
+  const isClass = isClassEvent(e);
+  const tagText = isClass ? 'CLASS' : 'VISITED';
+  const tagColor = isClass ? CLASS_ICON_COLOR : color;
   return `
     <div class="map-popup">
-      <div class="map-popup-tag" style="background:${color}22;color:${color};border-color:${color}55">VISITED</div>
+      <div class="map-popup-tag" style="background:${tagColor}22;color:${tagColor};border-color:${tagColor}55">${tagText}</div>
       <div class="map-popup-name">${escapeHtml(e.title || 'Stop')}</div>
       ${e.time ? `<div class="map-popup-meta">${escapeHtml(e.time)}${e.eta ? ` · ${escapeHtml(e.eta)} away` : ''}</div>` : ''}
       ${loc ? `<div class="map-popup-loc">${escapeHtml(loc)}</div>` : ''}
@@ -481,21 +646,27 @@ function buildRecommendedPopup(item) {
   const lng = item.position[1];
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.name || ''} ${p.address || ''}`)}`;
   const osmUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=18/${lat}/${lng}`;
+  const ratingHtml = typeof p.rating === 'number'
+    ? `<span class="map-popup-stat strong">★ ${p.rating.toFixed(1)}${p.userRatingsTotal ? ` · ${p.userRatingsTotal}` : ''}</span>`
+    : '';
   return `
     <div class="map-popup is-recommended">
       <div class="map-popup-tag is-rec">RECOMMENDED</div>
       <div class="map-popup-name">${escapeHtml(p.name || 'Suggested spot')}</div>
       ${p.typeLabel ? `<div class="map-popup-meta">${escapeHtml(p.typeLabel)}</div>` : ''}
       ${p.address ? `<div class="map-popup-loc">${escapeHtml(p.address)}</div>` : ''}
+      ${p.summary ? `<div class="map-popup-summary">${escapeHtml(p.summary)}</div>` : ''}
       <div class="map-popup-stat-row">
+        ${ratingHtml}
         ${p.mode && p.oneWayMinutes ? `<span class="map-popup-stat">${escapeHtml(p.mode)} · ${p.oneWayMinutes} min each way</span>` : ''}
         ${p.visitMinutes ? `<span class="map-popup-stat">stay ~${p.visitMinutes} min</span>` : ''}
-        ${p.totalMinutes ? `<span class="map-popup-stat strong">${p.totalMinutes} min total</span>` : ''}
+        ${p.totalMinutes ? `<span class="map-popup-stat">${p.totalMinutes} min total</span>` : ''}
       </div>
-      ${p.why ? `<div class="map-popup-why">${escapeHtml(p.why)}</div>` : ''}
       <div class="map-popup-actions">
         <a class="map-popup-btn" href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
-        <a class="map-popup-btn ghost" href="${osmUrl}" target="_blank" rel="noopener">View on OSM</a>
+        <button type="button" class="map-popup-btn ghost" onclick="saveMapRec(${JSON.stringify(String(p.id || ''))})">Save</button>
+        <button type="button" class="map-popup-btn ghost" onclick="dismissMapRec(${JSON.stringify(String(p.id || ''))})">Dismiss</button>
+        <button type="button" class="map-popup-btn" onclick="addRecToLocalCalendar(${JSON.stringify(String(p.name || ''))}, ${JSON.stringify(String(p.address || ''))})">Add to calendar</button>
       </div>
     </div>
   `;
@@ -517,9 +688,12 @@ function makeDotIcon({ label, size, color, recommended = false, meta = '', pillT
 }
 
 // Rebuild the legend so each on-map category gets its own colored swatch.
-function updateMapLegend(recs) {
+function updateMapLegend(recs, visited = []) {
   const legendEl = document.getElementById('map-legend');
   if (!legendEl) return;
+
+  const classCount = visited.filter(v => isClassEvent(v.event)).length;
+  const otherVisitedCount = visited.length - classCount;
 
   const counts = {};
   recs.forEach(r => {
@@ -541,8 +715,13 @@ function updateMapLegend(recs) {
       </span>`;
   }).join('');
 
+  const classChip = classCount
+    ? `<span class="legend-cat"><i class="legend-dot" style="background:${CLASS_ICON_COLOR}"></i>classes <span class="legend-count" style="background:${CLASS_ICON_COLOR}">${classCount}</span></span>`
+    : '';
+
   legendEl.innerHTML = `
-    <span><i class="legend-dot visited"></i> visited</span>
+    ${otherVisitedCount ? '<span><i class="legend-dot visited"></i> visited</span>' : ''}
+    ${classChip}
     ${categoryItems || '<span class="legend-empty">no recs yet</span>'}
     <button class="map-rec-refresh" id="map-rec-refresh" onclick="refreshMapRecommendations(event)">Refresh recs</button>
   `;

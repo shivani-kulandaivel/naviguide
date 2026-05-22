@@ -11,6 +11,8 @@ const App = (() => {
     renderToday();
     renderLog();
     renderDiscover();
+    if (typeof renderAutoPlan === 'function') renderAutoPlan();
+    if (typeof renderMyWeek === 'function') renderMyWeek();
     setupNav();
     setupApiKey();
     await restoreGoogleCalendarSession();
@@ -29,6 +31,8 @@ const App = (() => {
 
         if (btn.dataset.tab === 'today') renderToday();
         if (btn.dataset.tab === 'discover') renderDiscover();
+        if (btn.dataset.tab === 'autoplan' && typeof renderAutoPlan === 'function') renderAutoPlan();
+        if (btn.dataset.tab === 'myweek' && typeof renderMyWeek === 'function') renderMyWeek();
       });
     });
   }
@@ -116,35 +120,69 @@ const App = (() => {
     const btn = document.getElementById('google-calendar-connect-btn');
     const status = document.getElementById('google-calendar-activity');
     if (btn) {
-      btn.textContent = googleCalendarConnected ? 'Refresh Google Calendar' : 'Connect Google Calendar';
+      const label = btn.querySelector('span') || btn;
+      label.textContent = googleCalendarConnected ? 'Refresh' : 'Connect Google Calendar';
+      btn.classList.toggle('is-connected', googleCalendarConnected);
     }
     if (status) {
-      status.textContent = googleCalendarConnected ? 'Connected to Google Calendar' : 'Google Calendar not connected';
+      status.textContent = googleCalendarConnected ? 'Connected' : 'Not connected';
+      status.classList.toggle('is-connected', googleCalendarConnected);
     }
+  }
+
+  function waitForGoogleLibrary(label, isReady, timeoutMs = 8000) {
+    if (isReady()) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      const check = setInterval(() => {
+        if (isReady()) {
+          clearInterval(check);
+          resolve();
+        } else if (Date.now() - startedAt > timeoutMs) {
+          clearInterval(check);
+          reject(new Error(`${label} did not load`));
+        }
+      }, 100);
+    });
   }
 
   // Initialize the Google API client only once for Calendar calls.
   async function initGoogleCalendarClient() {
+    if (googleCalendarClientReady) return;
     if (googleCalendarInitPromise) return googleCalendarInitPromise;
-    googleCalendarInitPromise = new Promise((resolve, reject) => {
-      gapi.load('client', async () => {
-        try {
-          await gapi.client.init({
-            apiKey: await MapsService.getApiKey(),
-            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest']
+    googleCalendarInitPromise = (async () => {
+      try {
+        await waitForGoogleLibrary('Google API client', () => window.gapi?.load);
+        await new Promise((resolve, reject) => {
+          gapi.load('client', {
+            callback: resolve,
+            onerror: () => reject(new Error('Google API client failed to load')),
+            timeout: 8000,
+            ontimeout: () => reject(new Error('Google API client timed out'))
           });
-          googleCalendarClientReady = true;
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
+        });
+
+        await gapi.client.init({
+          discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest']
+        });
+        googleCalendarClientReady = true;
+      } catch (err) {
+        googleCalendarClientReady = false;
+        googleCalendarInitPromise = null;
+        throw err;
+      }
+    })();
     return googleCalendarInitPromise;
   }
 
   // Ensure an OAuth token client exists for requesting Calendar permissions.
-  function ensureGoogleCalendarTokenClient() {
+  async function ensureGoogleCalendarTokenClient() {
+    await waitForGoogleLibrary(
+      'Google Identity Services',
+      () => window.google?.accounts?.oauth2?.initTokenClient
+    );
+
     if (!googleCalendarTokenClient) {
       googleCalendarTokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
@@ -175,7 +213,7 @@ const App = (() => {
 
   // Return whether the app currently has a valid Google Calendar auth token.
   function isGoogleCalendarConnected() {
-    return googleCalendarConnected && !!gapi.client.getToken()?.access_token;
+    return googleCalendarConnected && !!window.gapi?.client?.getToken?.()?.access_token;
   }
 
   // Convert a display time string to hour/minute values.
@@ -281,7 +319,7 @@ const App = (() => {
   async function loadGoogleCalendar() {
     try {
       await initGoogleCalendarClient();
-      ensureGoogleCalendarTokenClient();
+      await ensureGoogleCalendarTokenClient();
       // Try to use a saved valid token first. If none, prompt the user for OAuth.
       const savedToken = getSavedGoogleCalendarToken();
       if (savedToken) {
@@ -295,7 +333,7 @@ const App = (() => {
       }
     } catch (err) {
       console.error('Google Calendar init failed', err);
-      alert('Unable to initialize Google Calendar.');
+      alert(`Unable to initialize Google Calendar: ${err.message}`);
     }
   }
 
